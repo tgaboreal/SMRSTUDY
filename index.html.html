@@ -1,0 +1,2791 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>SMR Study — Gabriel J Mena &amp; Aaron Nkulu · IFP Grupo Planeta</title>
+  <meta name="description" content="Plataforma de estudio para Sistemas Microinformáticos y Redes. Resúmenes, tests de autoevaluación y herramientas de organización." />
+  <meta name="author" content="Gabriel J Mena y Aaron Nkulu — IFP Grupo Planeta 2025" />
+  <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='8' fill='%236366f1'/%3E%3Ctext x='50%25' y='55%25' dominant-baseline='middle' text-anchor='middle' font-family='sans-serif' font-weight='900' font-size='15' fill='white'%3ES%3C/text%3E%3C/svg%3E" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
+  <!-- Firebase SDK -->
+  <script type="module">
+    import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
+    import { getAuth, GoogleAuthProvider, signInWithPopup, signOut, onAuthStateChanged }
+      from "https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js";
+    import { getFirestore, doc, getDoc, setDoc }
+      from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
+
+    const firebaseConfig = {
+      apiKey: "AIzaSyAX5mnzRK9h2MCvJVgwFUCwo9enrq4N0EA",
+      authDomain: "smr-proyecto-tfg.firebaseapp.com",
+      projectId: "smr-proyecto-tfg",
+      storageBucket: "smr-proyecto-tfg.firebasestorage.app",
+      messagingSenderId: "851333300979",
+      appId: "1:851333300979:web:f9944a6d311e85d7f3ed86"
+    };
+
+    const app  = initializeApp(firebaseConfig);
+    const auth = getAuth(app);
+    const db   = getFirestore(app);
+
+    window.firebaseAuth = auth;
+
+    window.loginConGoogle = async function() {
+      const provider = new GoogleAuthProvider();
+      try { await signInWithPopup(auth, provider); }
+      catch(e) { alert("Error al iniciar sesión: " + e.message); }
+    };
+
+    window.cerrarSesion = async function() { await signOut(auth); };
+
+    window.firebaseSave = async function(key, value) {
+      if (!auth.currentUser) return;
+      await setDoc(doc(db, "usuarios", auth.currentUser.uid), { [key]: JSON.stringify(value) }, { merge: true });
+    };
+
+    onAuthStateChanged(auth, async (user) => {
+      if (user) {
+        document.getElementById("login-screen").style.display = "none";
+        document.getElementById("app-root").style.display    = "block";
+        document.getElementById("user-name").textContent     = user.displayName ? user.displayName.split(" ")[0] : "Usuario";
+        document.getElementById("user-avatar").src           = user.photoURL || "";
+        document.getElementById("user-info").style.display   = "flex";
+
+        // Cargar datos del usuario desde Firestore
+        const snap = await getDoc(doc(db, "usuarios", user.uid));
+        const data = snap.exists() ? snap.data() : {};
+        window._smrPlan = data.smr_plan ? JSON.parse(data.smr_plan) : [];
+        window._smrObj  = data.smr_obj  ? JSON.parse(data.smr_obj)  : [];
+        window._smrCal  = data.smr_cal  ? JSON.parse(data.smr_cal)  : [];
+
+        window.dispatchEvent(new Event("smr-ready"));
+      } else {
+        document.getElementById("login-screen").style.display = "flex";
+        document.getElementById("app-root").style.display    = "none";
+        document.getElementById("user-info").style.display   = "none";
+      }
+    });
+  </script>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+
+
+    /* ── BOTÓN NUEVAS PREGUNTAS ── */
+    .btn-shuffle {
+      display: inline-flex; align-items: center; gap: 8px;
+      padding: 10px 20px; border-radius: 12px;
+      background: linear-gradient(135deg, #f59e0b, #f97316);
+      color: #fff; border: none; font-size: 0.88rem; font-weight: 600;
+      cursor: pointer; transition: all 0.2s; margin-bottom: 16px;
+      box-shadow: 0 4px 12px rgba(245,158,11,0.3);
+    }
+    .btn-shuffle:hover { transform: translateY(-1px); box-shadow: 0 6px 18px rgba(245,158,11,0.4); }
+    .btn-shuffle:active { transform: translateY(0); }
+
+    /* ── TRADUCTOR ── */
+    .lang-toggle {
+      display: flex; align-items: center; gap: 6px;
+      background: none; border: 1px solid #e2e8f0; border-radius: 20px;
+      padding: 5px 12px; cursor: pointer; transition: all 0.2s;
+      font-size: 0.82rem; font-weight: 600; color: #475569;
+    }
+    .lang-toggle:hover { border-color: #6366f1; color: #6366f1; background: #eef2ff; }
+    .lang-flag { font-size: 1.1rem; line-height: 1; }
+    #google_translate_element { display: none; }
+    .goog-te-banner-frame, .skiptranslate { display: none !important; }
+    body { top: 0 !important; }
+    .goog-te-gadget { display: none !important; }
+
+    /* ── LOGIN SCREEN ── */
+    #login-screen {
+      position: fixed; inset: 0; z-index: 999;
+      background: linear-gradient(135deg, #0f172a 0%, #1e293b 60%, #312e81 100%);
+      display: flex; align-items: center; justify-content: center;
+    }
+    .login-card {
+      background: rgba(255,255,255,0.05);
+      border: 1px solid rgba(255,255,255,0.1);
+      backdrop-filter: blur(20px);
+      border-radius: 24px; padding: 48px 40px;
+      text-align: center; max-width: 400px; width: 90%;
+      box-shadow: 0 24px 64px rgba(0,0,0,0.4);
+    }
+    .login-logo {
+      width: 64px; height: 64px; border-radius: 16px;
+      background: linear-gradient(135deg, #6366f1, #8b5cf6);
+      display: flex; align-items: center; justify-content: center;
+      font-size: 1.5rem; font-weight: 900; color: #fff;
+      margin: 0 auto 24px;
+    }
+    .login-title { font-size: 1.75rem; font-weight: 800; color: #f8fafc; margin-bottom: 8px; letter-spacing: -0.02em; }
+    .login-subtitle { font-size: 0.95rem; color: #94a3b8; margin-bottom: 36px; line-height: 1.6; }
+    .btn-google {
+      display: flex; align-items: center; justify-content: center; gap: 12px;
+      width: 100%; padding: 14px 24px;
+      background: #fff; color: #1f2937;
+      border: none; border-radius: 12px;
+      font-size: 0.95rem; font-weight: 600; cursor: pointer;
+      transition: all 0.2s; box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+    }
+    .btn-google:hover { transform: translateY(-2px); box-shadow: 0 8px 24px rgba(0,0,0,0.2); }
+    .login-footer { margin-top: 24px; font-size: 0.78rem; color: #475569; }
+    .user-info { display: none; align-items: center; gap: 10px; }
+    .user-avatar { width: 32px; height: 32px; border-radius: 50%; border: 2px solid rgba(99,102,241,0.4); object-fit: cover; }
+    .user-name { font-size: 0.85rem; font-weight: 600; color: #475569; }
+    .btn-logout { padding: 6px 12px; font-size: 0.8rem; font-weight: 600; background: none; border: 1px solid #e2e8f0; border-radius: 8px; color: #94a3b8; cursor: pointer; transition: all 0.15s; }
+    .btn-logout:hover { border-color: #fecaca; color: #ef4444; background: #fff5f5; }
+
+    body {
+      font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      background: #f8fafc;
+      color: #0f172a;
+      -webkit-font-smoothing: antialiased;
+    }
+
+    /* ── NAVBAR ── */
+    .navbar {
+      position: sticky; top: 0; z-index: 100;
+      background: rgba(255,255,255,0.85);
+      backdrop-filter: blur(12px);
+      border-bottom: 1px solid #e2e8f0;
+    }
+    .navbar-inner {
+      max-width: 1200px; margin: 0 auto; padding: 0 24px;
+      display: flex; align-items: center; justify-content: space-between; height: 64px;
+    }
+    .navbar-brand {
+      font-size: 1.25rem; font-weight: 800; text-decoration: none;
+      letter-spacing: -0.02em;
+      background: linear-gradient(135deg, #6366f1, #8b5cf6);
+      -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text;
+    }
+    .navbar-links { display: flex; gap: 4px; }
+    .navbar-link {
+      padding: 8px 16px; font-size: 0.875rem; font-weight: 500;
+      color: #64748b; text-decoration: none; border-radius: 8px; transition: all 0.15s;
+    }
+    .navbar-link:hover { color: #0f172a; background: #f1f5f9; }
+    .navbar-link.active { color: #6366f1; background: #eef2ff; }
+    .hamburger {
+      display: none; flex-direction: column; justify-content: center; gap: 5px;
+      width: 40px; height: 40px; border: none; background: none; cursor: pointer;
+      border-radius: 8px; padding: 8px; transition: background 0.15s;
+    }
+    .hamburger:hover { background: #f1f5f9; }
+    .hamburger span {
+      display: block; width: 100%; height: 2px; background: #64748b;
+      border-radius: 2px; transition: all 0.25s;
+    }
+    .hamburger.open span:nth-child(1) { transform: translateY(7px) rotate(45deg); }
+    .hamburger.open span:nth-child(2) { opacity: 0; transform: scaleX(0); }
+    .hamburger.open span:nth-child(3) { transform: translateY(-7px) rotate(-45deg); }
+    .mobile-menu {
+      display: none; flex-direction: column; gap: 4px;
+      padding: 12px 16px 16px; border-top: 1px solid #f1f5f9;
+      background: rgba(255,255,255,0.97); backdrop-filter: blur(12px);
+    }
+    .mobile-menu.open { display: flex; }
+    .mobile-menu .navbar-link { padding: 12px 16px; font-size: 0.95rem; border-radius: 10px; }
+
+    /* ── HERO ── */
+    .hero {
+      background: linear-gradient(135deg, #0f172a 0%, #1e293b 50%, #334155 100%);
+      padding: 80px 24px 64px; position: relative; overflow: hidden;
+    }
+    .hero::before {
+      content: ""; position: absolute; top: -50%; right: -20%;
+      width: 600px; height: 600px; border-radius: 50%;
+      background: radial-gradient(circle, rgba(99,102,241,0.15) 0%, transparent 70%);
+      pointer-events: none;
+    }
+    .hero::after {
+      content: ""; position: absolute; bottom: -30%; left: -10%;
+      width: 400px; height: 400px; border-radius: 50%;
+      background: radial-gradient(circle, rgba(139,92,246,0.1) 0%, transparent 70%);
+      pointer-events: none;
+    }
+    .hero-content { max-width: 800px; margin: 0 auto; text-align: center; position: relative; z-index: 1; }
+    .hero-badge {
+      display: inline-block; padding: 6px 16px; border-radius: 100px;
+      background: rgba(99,102,241,0.15); color: #a5b4fc;
+      font-size: 0.8rem; font-weight: 600; letter-spacing: 0.05em; text-transform: uppercase;
+      margin-bottom: 24px; border: 1px solid rgba(99,102,241,0.2);
+    }
+    .hero-title {
+      font-size: 2.75rem; font-weight: 800; color: #f8fafc;
+      line-height: 1.15; letter-spacing: -0.03em; margin-bottom: 20px;
+    }
+    .hero-highlight {
+      background: linear-gradient(135deg, #818cf8, #c084fc);
+      -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text;
+    }
+    .hero-subtitle {
+      font-size: 1.1rem; color: #94a3b8; line-height: 1.7;
+      margin-bottom: 32px; max-width: 600px; margin-left: auto; margin-right: auto;
+    }
+    .hero-actions { display: flex; gap: 12px; justify-content: center; flex-wrap: wrap; margin-bottom: 48px; }
+    .btn-primary {
+      display: inline-flex; align-items: center; gap: 8px; padding: 12px 28px;
+      background: linear-gradient(135deg, #6366f1, #8b5cf6); color: #fff;
+      border: none; border-radius: 12px; font-size: 0.95rem; font-weight: 600;
+      text-decoration: none; cursor: pointer; transition: all 0.2s;
+      box-shadow: 0 4px 15px rgba(99,102,241,0.3);
+    }
+    .btn-primary:hover { transform: translateY(-1px); box-shadow: 0 6px 20px rgba(99,102,241,0.4); }
+    .btn-secondary {
+      display: inline-flex; align-items: center; gap: 8px; padding: 12px 28px;
+      background: rgba(255,255,255,0.08); color: #e2e8f0;
+      border: 1px solid rgba(255,255,255,0.12); border-radius: 12px;
+      font-size: 0.95rem; font-weight: 600; text-decoration: none; cursor: pointer; transition: all 0.2s;
+    }
+    .btn-secondary:hover { background: rgba(255,255,255,0.12); border-color: rgba(255,255,255,0.2); }
+    .hero-stats { display: flex; align-items: center; justify-content: center; gap: 32px; }
+    .hero-stat { display: flex; flex-direction: column; align-items: center; }
+    .hero-stat-number { font-size: 1.75rem; font-weight: 800; color: #f8fafc; }
+    .hero-stat-label { font-size: 0.8rem; color: #64748b; text-transform: uppercase; letter-spacing: 0.05em; font-weight: 500; }
+    .hero-stat-divider { width: 1px; height: 40px; background: rgba(255,255,255,0.1); }
+
+    /* ── FADE IN ANIMATION ── */
+    @keyframes fadeInUp {
+      from { opacity: 0; transform: translateY(18px); }
+      to   { opacity: 1; transform: translateY(0); }
+    }
+    .fade-in { animation: fadeInUp 0.45s ease both; }
+
+    /* ── SECTIONS ── */
+    .section { padding: 80px 24px; }
+    .section-alt { background: #fff; }
+    .section-inner { max-width: 1100px; margin: 0 auto; }
+    .section-header { text-align: center; margin-bottom: 48px; }
+    .section-tag {
+      display: inline-block; padding: 4px 14px; border-radius: 100px;
+      background: #eef2ff; color: #6366f1; font-size: 0.75rem; font-weight: 700;
+      letter-spacing: 0.05em; text-transform: uppercase; margin-bottom: 12px;
+    }
+    .section-title { font-size: 2rem; font-weight: 800; color: #0f172a; margin-bottom: 12px; letter-spacing: -0.02em; }
+    .section-desc { font-size: 1.05rem; color: #64748b; }
+
+    /* ── MODULOS ── */
+    .módulos-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 20px; }
+    .módulo-card {
+      background: #fff; border-radius: 16px; padding: 28px;
+      border-top: 3px solid transparent;
+      box-shadow: 0 1px 3px rgba(0,0,0,0.04), 0 1px 2px rgba(0,0,0,0.06);
+      transition: all 0.2s; display: flex; flex-direction: column; cursor: default;
+    }
+    .módulo-card:hover { transform: translateY(-4px); box-shadow: 0 12px 24px rgba(0,0,0,0.08); }
+    .módulo-icon {
+      width: 44px; height: 44px; border-radius: 12px;
+      display: flex; align-items: center; justify-content: center;
+      color: #fff; font-size: 0.8rem; font-weight: 800; letter-spacing: 0.02em; margin-bottom: 16px;
+    }
+    .módulo-name { font-size: 1rem; font-weight: 700; color: #0f172a; margin-bottom: 6px; line-height: 1.4; }
+    .módulo-temas { font-size: 0.85rem; color: #94a3b8; margin-bottom: 16px; }
+    .módulo-link {
+      display: inline-flex; align-items: center; gap: 4px; background: none; border: none;
+      color: #6366f1; font-size: 0.85rem; font-weight: 600; cursor: pointer;
+      padding: 0; margin-top: auto; transition: gap 0.2s;
+    }
+    .módulo-link:hover { gap: 8px; }
+
+    /* ── RESUMENES ── */
+    .resumen-panel {
+      max-width: 720px; margin: 0 auto; background: #f8fafc;
+      border-radius: 16px; padding: 32px; border: 1px solid #e2e8f0;
+    }
+    .resumen-selectors { display: flex; gap: 16px; flex-wrap: wrap; }
+    .select-group { flex: 1; min-width: 200px; }
+    .select-label {
+      display: block; font-size: 0.8rem; font-weight: 600; color: #475569;
+      text-transform: uppercase; letter-spacing: 0.04em; margin-bottom: 8px;
+    }
+    .select-modern {
+      width: 100%; padding: 12px 40px 12px 16px; font-size: 0.95rem;
+      border: 2px solid #e2e8f0; border-radius: 12px; background: #fff; color: #0f172a;
+      cursor: pointer; transition: border-color 0.15s; appearance: none;
+      background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' viewBox='0 0 24 24' fill='none' stroke='%2394a3b8' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpolyline points='6 9 12 15 18 9'/%3E%3C/svg%3E");
+      background-repeat: no-repeat; background-position: right 14px center;
+    }
+    .select-modern:focus { outline: none; border-color: #6366f1; box-shadow: 0 0 0 3px rgba(99,102,241,0.1); }
+    /* ── SLIDE ── */
+    .slide {
+      margin-top: 24px; border-radius: 16px; overflow: hidden;
+      box-shadow: 0 4px 24px rgba(0,0,0,0.10); background: #fff;
+    }
+    .slide-header {
+      padding: 22px 28px 18px; color: #fff; display: flex; align-items: center; gap: 14px;
+    }
+    .slide-header-icon {
+      width: 42px; height: 42px; border-radius: 10px; background: rgba(255,255,255,0.2);
+      display: flex; align-items: center; justify-content: center; font-size: 0.75rem; font-weight: 800; flex-shrink: 0;
+    }
+    .slide-header-info { flex: 1; }
+    .slide-asignatura { font-size: 0.7rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.06em; opacity: 0.85; margin-bottom: 2px; }
+    .slide-título { font-size: 1.25rem; font-weight: 800; line-height: 1.2; }
+    .slide-body { padding: 24px 28px; display: grid; grid-template-columns: 1fr 1fr; gap: 20px; }
+    .slide-section-title {
+      font-size: 0.7rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.06em;
+      margin-bottom: 12px; display: flex; align-items: center; gap: 6px;
+    }
+    .slide-section-title::before { content: ""; display: block; width: 3px; height: 14px; border-radius: 2px; }
+    .slide-puntos { list-style: none; display: flex; flex-direction: column; gap: 8px; }
+    .slide-puntos li {
+      display: flex; gap: 8px; align-items: flex-start;
+      font-size: 0.88rem; color: #334155; line-height: 1.5;
+    }
+    .slide-puntos li::before {
+      content: "▸"; font-size: 0.75rem; margin-top: 2px; flex-shrink: 0; color: var(--c, #6366f1);
+    }
+    .slide-conceptos { display: flex; flex-direction: column; gap: 8px; }
+    .slide-concepto {
+      background: #f8fafc; border-radius: 8px; padding: 10px 12px;
+      border-left: 3px solid transparent;
+    }
+    .slide-concepto-term { font-size: 0.8rem; font-weight: 700; color: #0f172a; margin-bottom: 2px; }
+    .slide-concepto-def { font-size: 0.8rem; color: #64748b; line-height: 1.4; }
+    .slide-footer {
+      padding: 10px 28px; background: #f8fafc; border-top: 1px solid #f1f5f9;
+      display: flex; align-items: center; justify-content: space-between;
+    }
+    .slide-footer-tag { font-size: 0.72rem; color: #94a3b8; font-weight: 500; }
+    .slide-footer-num { font-size: 0.72rem; color: #94a3b8; font-weight: 600; }
+    @media (max-width: 640px) { .slide-body { grid-template-columns: 1fr; } }
+    .resumen-placeholder {
+      margin-top: 24px; padding: 40px 20px; background: #fff; border-radius: 12px;
+      text-align: center; color: #94a3b8; font-size: 0.95rem; border: 2px dashed #e2e8f0;
+      display: flex; flex-direction: column; align-items: center;
+    }
+    .hidden { display: none; }
+
+    /* ── TESTS ── */
+    .test-panel { max-width: 720px; margin: 0 auto; }
+    .test-questions { margin-top: 28px; display: flex; flex-direction: column; gap: 16px; }
+    .question-card {
+      display: flex; gap: 16px; background: #fff; border-radius: 14px; padding: 24px;
+      box-shadow: 0 1px 3px rgba(0,0,0,0.04), 0 1px 2px rgba(0,0,0,0.06);
+      border: 1px solid #f1f5f9; transition: border-color 0.15s;
+    }
+    .question-card:hover { border-color: #e2e8f0; }
+    .question-card.corrected-wrong { border-color: #fecaca; background: #fff8f8; }
+    .question-card.corrected-right { border-color: #bbf7d0; background: #f8fff9; }
+    .question-number {
+      width: 36px; height: 36px; min-width: 36px; border-radius: 10px;
+      background: #eef2ff; color: #6366f1; font-size: 0.85rem; font-weight: 700;
+      display: flex; align-items: center; justify-content: center;
+    }
+    .question-number.num-wrong { background: #fee2e2; color: #dc2626; }
+    .question-number.num-right { background: #dcfce7; color: #16a34a; }
+    .question-body { flex: 1; }
+    .question-text { font-size: 0.95rem; font-weight: 600; color: #0f172a; margin-bottom: 14px; line-height: 1.5; }
+    .question-options { display: flex; flex-direction: column; gap: 8px; }
+    .option-label {
+      display: flex; align-items: center; gap: 10px; padding: 10px 14px;
+      border: 2px solid #f1f5f9; border-radius: 10px; cursor: pointer;
+      font-size: 0.9rem; color: #475569; transition: all 0.15s; user-select: none;
+    }
+    .option-label input[type="radio"] { display: none; }
+    .option-radio {
+      width: 18px; height: 18px; min-width: 18px; border-radius: 50%;
+      border: 2px solid #cbd5e1; transition: all 0.15s; position: relative; flex-shrink: 0;
+    }
+    .option-label:hover { border-color: #c7d2fe; background: #fafafe; }
+    .option-label.selected { border-color: #6366f1; background: #eef2ff; color: #0f172a; }
+    .option-label.selected .option-radio { border-color: #6366f1; background: #6366f1; }
+    .option-label.selected .option-radio::after {
+      content: ""; position: absolute; top: 50%; left: 50%;
+      transform: translate(-50%, -50%); width: 6px; height: 6px;
+      border-radius: 50%; background: #fff;
+    }
+    .btn-full { width: 100%; justify-content: center; padding: 14px 28px; margin-top: 8px; }
+
+    /* ── RESULTADO GLOBAL ── */
+    .test-result {
+      margin-top: 20px; padding: 20px 24px;
+      border-radius: 14px; display: flex; align-items: center; gap: 12px;
+    }
+    .test-result.result-good {
+      background: linear-gradient(135deg, #ecfdf5, #d1fae5);
+      border: 1px solid #a7f3d0; color: #065f46;
+    }
+    .test-result.result-mid {
+      background: linear-gradient(135deg, #fffbeb, #fef3c7);
+      border: 1px solid #fde68a; color: #92400e;
+    }
+    .test-result.result-bad {
+      background: linear-gradient(135deg, #fef2f2, #fee2e2);
+      border: 1px solid #fecaca; color: #991b1b;
+    }
+    .test-result p { font-weight: 600; font-size: 1rem; }
+
+    /* ── CORRECCIÓN POR OPCIÓN ── */
+    .option-label.correcto {
+      border-color: #22c55e; background: #f0fdf4; color: #166534;
+      cursor: default; pointer-events: none;
+    }
+    .option-label.correcto .option-radio { border-color: #22c55e; background: #22c55e; }
+    .option-label.incorrecto {
+      border-color: #ef4444; background: #fef2f2; color: #991b1b;
+      cursor: default; pointer-events: none;
+    }
+    .option-label.incorrecto .option-radio { border-color: #ef4444; background: #ef4444; }
+    .option-label.correcto .option-radio::after,
+    .option-label.incorrecto .option-radio::after {
+      content: ""; position: absolute; top: 50%; left: 50%;
+      transform: translate(-50%, -50%); width: 6px; height: 6px;
+      border-radius: 50%; background: #fff;
+    }
+    /* opciones no seleccionadas tras corrección */
+    .option-label.bloqueada {
+      cursor: default; pointer-events: none; opacity: 0.55;
+    }
+    /* icono correcto/incorrecto al lado derecho */
+    .option-icon {
+      margin-left: auto; font-size: 1rem; flex-shrink: 0;
+    }
+
+    /* ── EXPLICACIÓN ── */
+    .explicacion-box {
+      margin-top: 12px; padding: 12px 16px;
+      background: #eef2ff; border-left: 3px solid #6366f1;
+      border-radius: 0 10px 10px 0;
+      font-size: 0.85rem; color: #3730a3; line-height: 1.6;
+      display: flex; gap: 10px; align-items: flex-start;
+    }
+    .explicacion-box.hidden { display: none; }
+    .explicacion-box .ex-icon {
+      font-size: 1rem; flex-shrink: 0; margin-top: 1px;
+    }
+    .explicacion-box strong { font-weight: 700; display: block; margin-bottom: 3px; color: #4338ca; }
+
+    /* ── ORGANIZACION MENU ── */
+    .org-menu { display: flex; flex-direction: column; gap: 12px; max-width: 720px; margin: 0 auto; }
+    .org-menu-btn {
+      display: flex; align-items: center; gap: 16px; width: 100%;
+      background: #fff; border: 1px solid #e2e8f0; border-radius: 16px;
+      padding: 20px 24px; cursor: pointer; text-align: left; transition: all 0.2s;
+    }
+    .org-menu-btn:hover { border-color: #c7d2fe; box-shadow: 0 4px 16px rgba(99,102,241,0.08); transform: translateY(-1px); }
+    .org-menu-icon {
+      width: 48px; height: 48px; min-width: 48px; border-radius: 12px;
+      display: flex; align-items: center; justify-content: center; color: #fff;
+    }
+    .org-menu-icon.blue  { background: linear-gradient(135deg, #3b82f6, #2563eb); }
+    .org-menu-icon.purple { background: linear-gradient(135deg, #8b5cf6, #7c3aed); }
+    .org-menu-icon.amber { background: linear-gradient(135deg, #f59e0b, #d97706); }
+    .org-menu-info { flex: 1; }
+    .org-menu-title { display: block; font-size: 1rem; font-weight: 700; color: #0f172a; margin-bottom: 3px; }
+    .org-menu-desc { display: block; font-size: 0.85rem; color: #94a3b8; }
+    .org-menu-arrow { color: #cbd5e1; flex-shrink: 0; transition: transform 0.2s; }
+    .org-menu-btn:hover .org-menu-arrow { color: #6366f1; transform: translateX(3px); }
+
+    /* ── TOOL SECTIONS ── */
+    .tool-section { background: #f8fafc; }
+    .tool-section.section-alt { background: #fff; }
+    .tool-header { display: flex; align-items: flex-start; gap: 16px; margin-bottom: 32px; }
+    .tool-back {
+      display: inline-flex; align-items: center; gap: 6px; padding: 8px 16px;
+      background: #fff; border: 1px solid #e2e8f0; border-radius: 10px;
+      font-size: 0.85rem; font-weight: 600; color: #64748b; cursor: pointer;
+      transition: all 0.15s; white-space: nowrap; margin-top: 4px;
+    }
+    .tool-back:hover { border-color: #6366f1; color: #6366f1; background: #eef2ff; }
+    .tool-card {
+      background: #fff; border-radius: 16px; padding: 28px;
+      border: 1px solid #e2e8f0;
+      box-shadow: 0 1px 3px rgba(0,0,0,0.04);
+    }
+    .tool-card-title { font-size: 1rem; font-weight: 700; color: #0f172a; margin-bottom: 20px; }
+    .tool-empty { text-align: center; color: #94a3b8; font-size: 0.95rem; padding: 32px 0; }
+
+    /* ── FORM PLANIFICADOR ── */
+    .plan-form { display: flex; flex-direction: column; gap: 12px; }
+    .plan-form-row { display: flex; gap: 12px; flex-wrap: wrap; }
+    .plan-form-row .select-group { flex: 1; min-width: 140px; }
+
+    /* ── TABLA PLANIFICADOR ── */
+    .plan-table-wrap { overflow-x: auto; }
+    .plan-table { width: 100%; border-collapse: collapse; font-size: 0.9rem; }
+    .plan-table th {
+      text-align: left; padding: 10px 14px; font-size: 0.75rem; font-weight: 700;
+      text-transform: uppercase; letter-spacing: 0.04em; color: #64748b;
+      border-bottom: 2px solid #f1f5f9; background: #f8fafc;
+    }
+    .plan-table td { padding: 12px 14px; border-bottom: 1px solid #f1f5f9; color: #334155; vertical-align: middle; }
+    .plan-table tr:last-child td { border-bottom: none; }
+    .plan-table tr:hover td { background: #fafafe; }
+    .plan-badge {
+      display: inline-block; padding: 3px 10px; border-radius: 100px;
+      font-size: 0.75rem; font-weight: 700; color: #fff;
+    }
+    .plan-stats { display: flex; gap: 16px; }
+    .plan-stat-chip {
+      display: flex; flex-direction: column; align-items: center;
+      background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 10px;
+      padding: 8px 16px; min-width: 80px;
+    }
+    .plan-stat-num { font-size: 1.25rem; font-weight: 800; color: #0f172a; }
+    .plan-stat-lbl { font-size: 0.7rem; color: #94a3b8; font-weight: 600; text-transform: uppercase; letter-spacing: 0.04em; }
+    .btn-icon {
+      display: inline-flex; align-items: center; justify-content: center;
+      width: 30px; height: 30px; border-radius: 8px; border: none;
+      background: #fee2e2; color: #dc2626; cursor: pointer; transition: all 0.15s; font-size: 0.9rem;
+    }
+    .btn-icon:hover { background: #fecaca; }
+
+    /* ── OBJETIVOS ── */
+    .obj-item {
+      display: flex; align-items: flex-start; gap: 14px; padding: 16px;
+      border: 1px solid #f1f5f9; border-radius: 12px; margin-bottom: 10px; transition: all 0.15s;
+    }
+    .obj-item:last-child { margin-bottom: 0; }
+    .obj-item.completado { opacity: 0.55; }
+    .obj-check {
+      width: 22px; height: 22px; min-width: 22px; border-radius: 6px;
+      border: 2px solid #cbd5e1; cursor: pointer; display: flex; align-items: center;
+      justify-content: center; transition: all 0.15s; margin-top: 1px;
+    }
+    .obj-check.done { background: #22c55e; border-color: #22c55e; color: #fff; }
+    .obj-body { flex: 1; }
+    .obj-texto { font-size: 0.95rem; font-weight: 600; color: #0f172a; margin-bottom: 4px; }
+    .obj-item.completado .obj-texto { text-decoration: line-through; color: #94a3b8; }
+    .obj-meta { display: flex; gap: 10px; flex-wrap: wrap; align-items: center; }
+    .obj-tag { font-size: 0.75rem; font-weight: 600; padding: 2px 10px; border-radius: 100px; background: #eef2ff; color: #6366f1; }
+    .obj-fecha-tag { font-size: 0.75rem; color: #94a3b8; font-weight: 500; }
+    .obj-fecha-tag.vencido { color: #ef4444; font-weight: 700; }
+    .obj-fecha-tag.proximo { color: #f59e0b; font-weight: 700; }
+
+    /* ── CALENDARIO ── */
+    .cal-item {
+      display: flex; align-items: center; gap: 16px; padding: 14px 16px;
+      border: 1px solid #f1f5f9; border-radius: 12px; margin-bottom: 10px; transition: all 0.15s;
+    }
+    .cal-item:last-child { margin-bottom: 0; }
+    .cal-date-box {
+      display: flex; flex-direction: column; align-items: center; justify-content: center;
+      width: 52px; min-width: 52px; height: 52px; border-radius: 12px;
+      background: #f8fafc; border: 1px solid #e2e8f0; font-weight: 800;
+    }
+    .cal-date-day { font-size: 1.3rem; color: #0f172a; line-height: 1; }
+    .cal-date-month { font-size: 0.65rem; text-transform: uppercase; letter-spacing: 0.06em; color: #94a3b8; font-weight: 700; }
+    .cal-body { flex: 1; }
+    .cal-titulo { font-size: 0.95rem; font-weight: 700; color: #0f172a; margin-bottom: 3px; }
+    .cal-meta { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+    .cal-tipo-badge { font-size: 0.75rem; font-weight: 600; padding: 2px 10px; border-radius: 100px; }
+    .cal-tipo-badge.examen  { background: #fee2e2; color: #dc2626; }
+    .cal-tipo-badge.entrega { background: #dbeafe; color: #2563eb; }
+    .cal-tipo-badge.evento  { background: #f3e8ff; color: #7c3aed; }
+    .cal-dias-tag { font-size: 0.75rem; color: #94a3b8; font-weight: 500; }
+    .cal-dias-tag.urgente { color: #ef4444; font-weight: 700; }
+    .cal-dias-tag.proximo { color: #f59e0b; font-weight: 700; }
+    .cal-item.pasado { opacity: 0.45; }
+    .cal-date-box.urgente { background: #fee2e2; border-color: #fecaca; }
+    .cal-date-box.urgente .cal-date-day { color: #dc2626; }
+
+    @media (max-width: 768px) {
+      .plan-form-row { flex-direction: column; }
+      .plan-stats { gap: 8px; }
+      .tool-header { flex-direction: column; }
+    }
+
+    /* ── FOOTER ── */
+    .footer { background: #0f172a; padding: 60px 24px 32px; }
+    .footer-inner { max-width: 1100px; margin: 0 auto; }
+    .footer-top { display: grid; grid-template-columns: 2fr 1fr 1fr; gap: 48px; margin-bottom: 48px; }
+    .footer-brand {
+      font-size: 1.25rem; font-weight: 800; margin-bottom: 12px;
+      background: linear-gradient(135deg, #818cf8, #c084fc);
+      -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text;
+    }
+    .footer-tagline { font-size: 0.875rem; color: #94a3b8; line-height: 1.6; max-width: 280px; }
+    .footer-col-title { font-size: 0.75rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.06em; color: #64748b; margin-bottom: 16px; }
+    .footer-nav { display: flex; flex-direction: column; gap: 10px; }
+    .footer-nav a { font-size: 0.875rem; color: #475569; text-decoration: none; transition: color 0.15s; }
+    .footer-nav a:hover { color: #a5b4fc; }
+    .footer-bottom { border-top: 1px solid #1e293b; padding-top: 28px; display: flex; flex-direction: column; gap: 4px; align-items: center; }
+    .footer-text { font-size: 0.8rem; color: #94a3b8; }
+    @media (max-width: 768px) {
+      .footer-top { grid-template-columns: 1fr; gap: 32px; }
+      .footer-tagline { max-width: 100%; }
+    }
+
+    /* ── RESPONSIVE ── */
+    @media (max-width: 768px) {
+      .hero-title { font-size: 1.85rem; }
+      .hero { padding: 56px 20px 48px; }
+      .navbar-links { display: none; }
+      .hamburger { display: flex; }
+      .módulos-grid, .org-grid { grid-template-columns: 1fr; }
+      .section { padding: 56px 20px; }
+      .resumen-panel { padding: 20px; }
+      .resumen-selectors { flex-direction: column; }
+      .hero-stats { gap: 20px; }
+      .question-card { flex-direction: column; gap: 12px; }
+    }
+
+    /* ── BANNER RESUMEN DIARIO ── */
+    .daily-banner {
+      position: fixed; top: 64px; left: 0; right: 0; z-index: 99;
+      background: linear-gradient(135deg, #1e1b4b, #312e81);
+      border-bottom: 1px solid rgba(99,102,241,0.3);
+      transform: translateY(-110%);
+      transition: transform 0.4s cubic-bezier(0.34, 1.56, 0.64, 1);
+      box-shadow: 0 4px 24px rgba(0,0,0,0.2);
+    }
+    .daily-banner.visible { transform: translateY(0); }
+    .daily-banner-inner {
+      max-width: 1200px; margin: 0 auto; padding: 14px 24px;
+      display: flex; align-items: center; gap: 16px; flex-wrap: wrap;
+    }
+    .daily-banner-icon {
+      width: 38px; height: 38px; min-width: 38px; border-radius: 10px;
+      background: rgba(99,102,241,0.3); display: flex; align-items: center;
+      justify-content: center; position: relative; flex-shrink: 0;
+    }
+    .daily-banner-dot {
+      position: absolute; top: -3px; right: -3px; width: 10px; height: 10px;
+      background: #f59e0b; border-radius: 50%; border: 2px solid #1e1b4b;
+      animation: pulse-dot 2s infinite;
+    }
+    @keyframes pulse-dot {
+      0%, 100% { transform: scale(1); opacity: 1; }
+      50% { transform: scale(1.3); opacity: 0.7; }
+    }
+    .daily-banner-content { flex: 1; display: flex; gap: 20px; flex-wrap: wrap; align-items: center; }
+    .daily-banner-title { font-size: 0.8rem; font-weight: 700; color: #a5b4fc; text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 4px; }
+    .daily-banner-chips { display: flex; gap: 8px; flex-wrap: wrap; }
+    .daily-chip {
+      display: inline-flex; align-items: center; gap: 5px;
+      padding: 4px 12px; border-radius: 100px; font-size: 0.8rem; font-weight: 600;
+      background: rgba(255,255,255,0.08); color: #e2e8f0; border: 1px solid rgba(255,255,255,0.1);
+    }
+    .daily-chip.warning { background: rgba(245,158,11,0.15); color: #fcd34d; border-color: rgba(245,158,11,0.2); }
+    .daily-chip.danger  { background: rgba(239,68,68,0.15);  color: #fca5a5; border-color: rgba(239,68,68,0.2); }
+    .daily-chip.ok      { background: rgba(34,197,94,0.15);  color: #86efac; border-color: rgba(34,197,94,0.2); }
+    .daily-chip.neutral { background: rgba(148,163,184,0.1); color: #94a3b8; border-color: rgba(148,163,184,0.15); }
+    .daily-banner-close {
+      background: none; border: none; color: #64748b; cursor: pointer;
+      font-size: 1.1rem; padding: 4px 8px; border-radius: 6px; transition: all 0.15s; flex-shrink: 0;
+    }
+    .daily-banner-close:hover { color: #e2e8f0; background: rgba(255,255,255,0.08); }
+    .daily-banner-cta {
+      display: inline-flex; align-items: center; gap: 6px; padding: 6px 14px;
+      background: rgba(99,102,241,0.25); color: #a5b4fc; border: 1px solid rgba(99,102,241,0.3);
+      border-radius: 8px; font-size: 0.8rem; font-weight: 600; cursor: pointer;
+      text-decoration: none; transition: all 0.15s; white-space: nowrap;
+    }
+    .daily-banner-cta:hover { background: rgba(99,102,241,0.4); color: #c7d2fe; }
+    @media (max-width: 768px) {
+      .daily-banner { top: 64px; }
+      .daily-banner-inner { padding: 12px 16px; gap: 10px; }
+      .daily-banner-content { gap: 10px; }
+    }
+
+    /* ── BOTÓN TOGGLE BANNER ── */
+    .banner-toggle-btn {
+      position: fixed;
+      bottom: 28px;
+      right: 28px;
+      z-index: 200;
+      width: 52px;
+      height: 52px;
+      border-radius: 50%;
+      background: linear-gradient(135deg, #6366f1, #8b5cf6);
+      border: none;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      box-shadow: 0 4px 20px rgba(99,102,241,0.45);
+      transition: all 0.2s;
+    }
+    .banner-toggle-btn:hover {
+      transform: scale(1.08);
+      box-shadow: 0 6px 28px rgba(99,102,241,0.55);
+    }
+    .banner-toggle-btn.hidden-btn { display: none; }
+    .banner-toggle-dot {
+      position: absolute;
+      top: 2px;
+      right: 2px;
+      width: 14px;
+      height: 14px;
+      background: #f59e0b;
+      border-radius: 50%;
+      border: 2px solid #fff;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 0.55rem;
+      font-weight: 900;
+      color: #fff;
+      animation: pulse-dot 2s infinite;
+    }
+    @media (max-width: 768px) {
+      .banner-toggle-btn { bottom: 20px; right: 16px; width: 46px; height: 46px; }
+    }
+  </style>
+</head>
+<body>
+
+<!-- LOGIN SCREEN -->
+<div id="login-screen">
+  <div class="login-card">
+    <div class="login-logo">
+      <svg width="64" height="64" viewBox="0 0 64 64" xmlns="http://www.w3.org/2000/svg">
+        <defs>
+          <linearGradient id="lg1" x1="0%" y1="0%" x2="100%" y2="100%">
+            <stop offset="0%" style="stop-color:#6366f1"/>
+            <stop offset="100%" style="stop-color:#8b5cf6"/>
+          </linearGradient>
+        </defs>
+        <rect width="64" height="64" rx="16" fill="url(#lg1)"/>
+        <text x="50%" y="53%" dominant-baseline="middle" text-anchor="middle"
+          font-family="Inter,sans-serif" font-weight="900" font-size="18" fill="white" letter-spacing="1">SMR</text>
+      </svg>
+    </div>
+    <h1 class="login-title">SMR Study</h1>
+    <p class="login-subtitle">Plataforma de estudio para Sistemas Microinformáticos y Redes.<br>Inicia sesión para acceder a tus datos.</p>
+    <button class="btn-google" onclick="loginConGoogle()">
+      <svg width="20" height="20" viewBox="0 0 48 48"><path fill="#EA4335" d="M24 9.5c3.54 0 6.71 1.22 9.21 3.6l6.85-6.85C35.9 2.38 30.47 0 24 0 14.62 0 6.51 5.38 2.56 13.22l7.98 6.19C12.43 13.1 17.74 9.5 24 9.5z"/><path fill="#4285F4" d="M46.98 24.55c0-1.57-.15-3.09-.38-4.55H24v9.02h12.94c-.58 2.96-2.26 5.48-4.78 7.18l7.73 6c4.51-4.18 7.09-10.36 7.09-17.65z"/><path fill="#FBBC05" d="M10.53 28.59c-.48-1.45-.76-2.99-.76-4.59s.27-3.14.76-4.59l-7.98-6.19C.92 16.46 0 20.12 0 24c0 3.88.92 7.54 2.56 10.78l7.97-6.19z"/><path fill="#34A853" d="M24 48c6.48 0 11.93-2.13 15.89-5.81l-7.73-6c-2.18 1.48-4.97 2.31-8.16 2.31-6.26 0-11.57-3.59-13.46-8.91l-7.98 6.19C6.51 42.62 14.62 48 24 48z"/></svg>
+      Continuar con Google
+    </button>
+    <p class="login-footer">IFP Grupo Planeta · SMR 2025 · Gabriel J Mena &amp; Aaron Nkulu</p>
+  </div>
+</div>
+<div id="app-root" style="display:none">
+<!-- NAVBAR -->
+<nav class="navbar" id="navbar">
+  <div class="navbar-inner">
+    <a href="#inicio" class="navbar-brand">SMR Study</a>
+    <div class="navbar-links">
+      <a href="#inicio"      class="navbar-link active" data-section="inicio">Inicio</a>
+      <a href="#módulos"     class="navbar-link" data-section="módulos">Módulos</a>
+      <a href="#resumenes"   class="navbar-link" data-section="resumenes">Resúmenes</a>
+      <a href="#tests"       class="navbar-link" data-section="tests">Tests</a>
+      <a href="#organización" class="navbar-link" data-section="organización">Organización</a>
+    </div>
+    <button class="lang-toggle" id="lang-btn" onclick="toggleLang()" title="Cambiar idioma">
+  <img id="lang-flag-img" src="https://flagcdn.com/w20/es.png" width="20" height="14" alt="ES" style="border-radius:2px">
+  <span id="lang-label">ES</span>
+</button><div class="user-info" id="user-info"><img class="user-avatar" id="user-avatar" src="" alt="avatar"><span class="user-name" id="user-name"></span><button class="btn-logout" onclick="cerrarSesion()">Salir</button></div><button class="hamburger" id="hamburger" aria-label="Abrir menú">
+      <span></span><span></span><span></span>
+    </button>
+  </div>
+  <div class="mobile-menu" id="mobile-menu">
+    <a href="#inicio"      class="navbar-link" data-section="inicio">Inicio</a>
+    <a href="#módulos"     class="navbar-link" data-section="módulos">Módulos</a>
+    <a href="#resumenes"   class="navbar-link" data-section="resumenes">Resúmenes</a>
+    <a href="#tests"       class="navbar-link" data-section="tests">Tests</a>
+    <a href="#organización" class="navbar-link" data-section="organización">Organización</a>
+  </div>
+</nav>
+
+
+<!-- BANNER RESUMEN DIARIO -->
+<div class="daily-banner" id="daily-banner">
+  <div class="daily-banner-inner">
+    <div class="daily-banner-icon">
+      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#a5b4fc" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 17H2a3 3 0 0 0 3-3V9a7 7 0 0 1 14 0v5a3 3 0 0 0 3 3zm-8.27 4a2 2 0 0 1-3.46 0"/></svg>
+      <span class="daily-banner-dot"></span>
+    </div>
+    <div class="daily-banner-content">
+      <div>
+        <div class="daily-banner-title">Tu resumen de hoy</div>
+        <div class="daily-banner-chips" id="banner-chips"></div>
+      </div>
+      <a class="daily-banner-cta" href="#organización">
+        Ver planificación
+        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="9 18 15 12 9 6"/></svg>
+      </a>
+    </div>
+    <button class="daily-banner-close" id="banner-close" title="Cerrar">✕</button>
+  </div>
+</div>
+
+<!-- BOTÓN FLOTANTE TOGGLE BANNER -->
+<button class="banner-toggle-btn hidden-btn" id="banner-toggle-btn" title="Ver resumen del día">
+  <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+    <path d="M22 17H2a3 3 0 0 0 3-3V9a7 7 0 0 1 14 0v5a3 3 0 0 0 3 3z"/>
+    <path d="M13.73 21a2 2 0 0 1-3.46 0"/>
+  </svg>
+  <span class="banner-toggle-dot">!</span>
+</button>
+
+<!-- HERO -->
+<section id="inicio" class="hero">
+  <div class="hero-content">
+    <div class="hero-badge">IFP Grupo Planeta · Ciclo Formativo SMR</div>
+    <h1 class="hero-title">
+      Tu plataforma de estudio para<br>
+      <span class="hero-highlight">Sistemas Microinformáticos y Redes</span>
+    </h1>
+    <p class="hero-subtitle">
+      Resúmenes, tests de autoevaluación y herramientas de organización para preparar tus exámenes de forma eficiente.
+    </p>
+    <div class="hero-actions">
+      <a href="#resumenes" class="btn-primary">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/></svg>
+        Empezar a estudiar
+      </a>
+      <a href="#tests" class="btn-secondary">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>
+        Hacer un test
+      </a>
+    </div>
+    <div class="hero-stats">
+      <div class="hero-stat"><span class="hero-stat-number" id="stat-asignaturas">—</span><span class="hero-stat-label">Asignaturas</span></div>
+      <div class="hero-stat-divider"></div>
+      <div class="hero-stat"><span class="hero-stat-number" id="stat-temas">—</span><span class="hero-stat-label">Temas</span></div>
+      <div class="hero-stat-divider"></div>
+      <div class="hero-stat"><span class="hero-stat-number" id="stat-preguntas">—</span><span class="hero-stat-label">Preguntas</span></div>
+    </div>
+  </div>
+</section>
+
+<!-- MODULOS -->
+<section id="módulos" class="section">
+  <div class="section-inner">
+    <div class="section-header">
+      <span class="section-tag">Contenido</span>
+      <h2 class="section-title">Módulos del ciclo</h2>
+      <p class="section-desc">Explora las 9 asignaturas del segundo curso de SMR</p>
+    </div>
+    <div class="módulos-grid" id="módulos-grid"></div>
+  </div>
+</section>
+
+<!-- RESUMENES -->
+<section id="resumenes" class="section section-alt">
+  <div class="section-inner">
+    <div class="section-header">
+      <span class="section-tag">Teoría</span>
+      <h2 class="section-title">Resúmenes</h2>
+      <p class="section-desc">Selecciona una asignatura y un tema para ver su resumen</p>
+    </div>
+    <div class="resumen-panel">
+      <div class="resumen-selectors">
+        <div class="select-group">
+          <label class="select-label">Asignatura</label>
+          <select class="select-modern" id="resumen-asignatura">
+            <option value="">Elige una asignatura</option>
+          </select>
+        </div>
+        <div class="select-group hidden" id="resumen-tema-group">
+          <label class="select-label">Tema</label>
+          <select class="select-modern" id="resumen-tema">
+            <option value="">Elige un tema</option>
+          </select>
+        </div>
+      </div>
+      <div id="resumen-placeholder" class="resumen-placeholder hidden">
+        <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="#cbd5e1" stroke-width="1.5" style="margin-bottom:12px"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/></svg>
+        <p style="font-weight:600;color:#64748b;margin-bottom:4px">Ningún tema seleccionado</p>
+        <p style="font-size:0.85rem">Elige una asignatura y un tema para ver el resumen.</p>
+      </div>
+      <div id="resumen-content" class="hidden"></div>
+    </div>
+  </div>
+</section>
+
+<!-- TESTS -->
+<section id="tests" class="section">
+  <div class="section-inner">
+    <div class="section-header">
+      <span class="section-tag">Práctica</span>
+      <h2 class="section-title">Tests de autoevaluación</h2>
+      <p class="section-desc">Pon a prueba tus conocimientos con preguntas tipo test</p>
+    </div>
+    <div class="test-panel">
+      <div class="select-group">
+        <label class="select-label">Asignatura del test</label>
+        <select class="select-modern" id="test-asignatura">
+          <option value="">Elige una asignatura</option>
+        </select>
+      </div>
+      <div class="test-questions hidden" id="test-preguntas"></div>
+      <div class="test-result hidden" id="test-resultado"></div>
+    </div>
+  </div>
+</section>
+
+<!-- ORGANIZACION MENU -->
+<section id="organización" class="section section-alt">
+  <div class="section-inner">
+    <div class="section-header">
+      <span class="section-tag">Herramientas</span>
+      <h2 class="section-title">Organización del estudio</h2>
+      <p class="section-desc">Herramientas para planificar y optimizar tu tiempo de estudio</p>
+    </div>
+    <div class="org-menu">
+      <button class="org-menu-btn" data-tool="planificador">
+        <div class="org-menu-icon blue">
+          <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
+        </div>
+        <div class="org-menu-info">
+          <span class="org-menu-title">Planificador</span>
+          <span class="org-menu-desc">Sesiones de estudio por día y asignatura</span>
+        </div>
+        <svg class="org-menu-arrow" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="9 18 15 12 9 6"/></svg>
+      </button>
+      <button class="org-menu-btn" data-tool="objetivos">
+        <div class="org-menu-icon purple">
+          <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><circle cx="12" cy="12" r="6"/><circle cx="12" cy="12" r="2"/></svg>
+        </div>
+        <div class="org-menu-info">
+          <span class="org-menu-title">Objetivos</span>
+          <span class="org-menu-desc">Metas y seguimiento del progreso</span>
+        </div>
+        <svg class="org-menu-arrow" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="9 18 15 12 9 6"/></svg>
+      </button>
+      <button class="org-menu-btn" data-tool="calendario">
+        <div class="org-menu-icon amber">
+          <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+        </div>
+        <div class="org-menu-info">
+          <span class="org-menu-title">Calendario</span>
+          <span class="org-menu-desc">Exámenes y entregas importantes</span>
+        </div>
+        <svg class="org-menu-arrow" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="9 18 15 12 9 6"/></svg>
+      </button>
+    </div>
+  </div>
+</section>
+
+<!-- PLANIFICADOR -->
+<section id="planificador" class="section tool-section">
+  <div class="section-inner">
+    <div class="tool-header">
+      <button class="tool-back" onclick="scrollToOrg()">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="15 18 9 12 15 6"/></svg>
+        Volver
+      </button>
+      <div>
+        <span class="section-tag">Planificador</span>
+        <h2 class="section-title" style="margin-top:8px">Planificador semanal</h2>
+      </div>
+    </div>
+    <div class="tool-card" style="margin-bottom:24px">
+      <h3 class="tool-card-title">Añadir sesión de estudio</h3>
+      <div class="plan-form">
+        <div class="plan-form-row">
+          <div class="select-group">
+            <label class="select-label">Día</label>
+            <select class="select-modern" id="plan-dia">
+              <option>Lunes</option><option>Martes</option><option>Miércoles</option>
+              <option>Jueves</option><option>Viernes</option><option>Sábado</option><option>Domingo</option>
+            </select>
+          </div>
+          <div class="select-group">
+            <label class="select-label">Asignatura</label>
+            <select class="select-modern" id="plan-asignatura"><option value="">Elige asignatura</option></select>
+          </div>
+          <div class="select-group" style="max-width:120px">
+            <label class="select-label">Horas</label>
+            <select class="select-modern" id="plan-horas">
+              <option value="0.5">30 min</option><option value="1" selected>1 h</option>
+              <option value="1.5">1:30 h</option><option value="2">2 h</option>
+              <option value="2.5">2:30 h</option><option value="3">3 h</option>
+            </select>
+          </div>
+          <div class="select-group" style="flex:2">
+            <label class="select-label">Nota (opcional)</label>
+            <input type="text" class="select-modern" id="plan-nota" placeholder="Ej: Repasar tema 3">
+          </div>
+        </div>
+        <button class="btn-primary" id="plan-add-btn" style="margin-top:4px">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+          Añadir sesión
+        </button>
+      </div>
+    </div>
+    <div class="tool-card">
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:20px;flex-wrap:wrap;gap:12px">
+        <h3 class="tool-card-title" style="margin:0">Tabla semanal</h3>
+        <div id="plan-stats" class="plan-stats"></div>
+      </div>
+      <div class="plan-table-wrap">
+        <table class="plan-table"><thead><tr><th>Día</th><th>Asignatura</th><th>Horas</th><th>Nota</th><th></th></tr></thead><tbody id="plan-tbody"></tbody></table>
+        <div class="tool-empty hidden" id="plan-empty">No hay sesiones aún. ¡Añade la primera!</div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- OBJETIVOS -->
+<section id="objetivos" class="section section-alt tool-section">
+  <div class="section-inner">
+    <div class="tool-header">
+      <button class="tool-back" onclick="scrollToOrg()">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="15 18 9 12 15 6"/></svg>
+        Volver
+      </button>
+      <div>
+        <span class="section-tag">Objetivos</span>
+        <h2 class="section-title" style="margin-top:8px">Mis objetivos</h2>
+      </div>
+    </div>
+    <div class="tool-card" style="margin-bottom:24px">
+      <h3 class="tool-card-title">Nuevo objetivo</h3>
+      <div class="plan-form">
+        <div class="plan-form-row">
+          <div class="select-group" style="flex:3">
+            <label class="select-label">Objetivo</label>
+            <input type="text" class="select-modern" id="obj-texto" placeholder="Ej: Aprobar el examen de Redes con un 7">
+          </div>
+          <div class="select-group">
+            <label class="select-label">Asignatura</label>
+            <select class="select-modern" id="obj-asignatura"><option value="General">General</option></select>
+          </div>
+          <div class="select-group" style="max-width:160px">
+            <label class="select-label">Fecha límite</label>
+            <input type="date" class="select-modern" id="obj-fecha">
+          </div>
+        </div>
+        <button class="btn-primary" id="obj-add-btn" style="margin-top:4px">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+          Añadir objetivo
+        </button>
+      </div>
+    </div>
+    <div class="tool-card">
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:20px;flex-wrap:wrap;gap:12px">
+        <h3 class="tool-card-title" style="margin:0">Seguimiento</h3>
+        <div id="obj-stats" class="plan-stats"></div>
+      </div>
+      <div id="obj-lista"></div>
+      <div class="tool-empty hidden" id="obj-empty">No tienes objetivos todavía. ¡Define el primero!</div>
+    </div>
+  </div>
+</section>
+
+<!-- CALENDARIO -->
+<section id="calendario" class="section tool-section">
+  <div class="section-inner">
+    <div class="tool-header">
+      <button class="tool-back" onclick="scrollToOrg()">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="15 18 9 12 15 6"/></svg>
+        Volver
+      </button>
+      <div>
+        <span class="section-tag">Calendario</span>
+        <h2 class="section-title" style="margin-top:8px">Calendario de exámenes</h2>
+      </div>
+    </div>
+    <div class="tool-card" style="margin-bottom:24px">
+      <h3 class="tool-card-title">Nuevo evento</h3>
+      <div class="plan-form">
+        <div class="plan-form-row">
+          <div class="select-group" style="flex:2">
+            <label class="select-label">Título</label>
+            <input type="text" class="select-modern" id="cal-titulo" placeholder="Ej: Examen de Redes">
+          </div>
+          <div class="select-group">
+            <label class="select-label">Asignatura</label>
+            <select class="select-modern" id="cal-asignatura"><option value="General">General</option></select>
+          </div>
+          <div class="select-group" style="max-width:160px">
+            <label class="select-label">Fecha</label>
+            <input type="date" class="select-modern" id="cal-fecha">
+          </div>
+          <div class="select-group" style="max-width:140px">
+            <label class="select-label">Tipo</label>
+            <select class="select-modern" id="cal-tipo">
+              <option value="examen">📝 Examen</option>
+              <option value="entrega">📤 Entrega</option>
+              <option value="evento">📌 Evento</option>
+            </select>
+          </div>
+        </div>
+        <button class="btn-primary" id="cal-add-btn" style="margin-top:4px">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+          Añadir evento
+        </button>
+      </div>
+    </div>
+    <div class="tool-card">
+      <h3 class="tool-card-title" style="margin-bottom:20px">Próximos eventos</h3>
+      <div id="cal-lista"></div>
+      <div class="tool-empty hidden" id="cal-empty">No hay eventos. ¡Añade tus exámenes y entregas!</div>
+    </div>
+  </div>
+</section>
+
+<!-- FOOTER -->
+<footer class="footer">
+  <div class="footer-inner">
+    <div class="footer-top">
+      <div class="footer-col">
+        <div class="footer-brand">SMR Study</div>
+        <p class="footer-tagline">Plataforma de estudio para el ciclo formativo de Sistemas Microinformáticos y Redes.</p>
+      </div>
+      <div class="footer-col">
+        <p class="footer-col-title">Secciones</p>
+        <nav class="footer-nav">
+          <a href="#inicio">Inicio</a>
+          <a href="#módulos">Módulos</a>
+          <a href="#resumenes">Resúmenes</a>
+          <a href="#tests">Tests</a>
+          <a href="#organización">Organización</a>
+        </nav>
+      </div>
+      <div class="footer-col">
+        <p class="footer-col-title">Herramientas</p>
+        <nav class="footer-nav">
+          <a href="#planificador">Planificador semanal</a>
+          <a href="#objetivos">Objetivos</a>
+          <a href="#calendario">Calendario de exámenes</a>
+        </nav>
+      </div>
+    </div>
+    <div class="footer-bottom">
+      <p class="footer-text" style="font-weight:700;font-size:0.95rem;color:#e2e8f0">Gabriel J Mena &amp; Aaron Nkulu</p>
+      <p class="footer-text">IFP Grupo Planeta · Ciclo Formativo SMR · 2025</p>
+      <p class="footer-text">Proyecto de fin de ciclo · Sistemas Microinformáticos y Redes</p>
+    </div>
+  </div>
+</footer>
+
+<script>
+// =============================================
+// DATOS
+// =============================================
+
+const COLORES = {
+  so: "#6366f1", redes: "#0ea5e9", seguridad: "#ef4444", web: "#f59e0b",
+  ingles: "#8b5cf6", digitalización: "#14b8a6", empleabilidad: "#ec4899",
+  sostenibilidad: "#22c55e", robótica: "#f97316"
+};
+
+const RESUMENES = {
+  so: {
+    nombre: "Sistemas operativos en red", ícono: "SO",
+    temas: {
+      "Introducción a los SO en red": {
+        puntos: [
+          "Un SO en red permite compartir recursos (ficheros, impresoras, internet) entre equipos conectados.",
+          "Tipos: SO de servidor (Windows Server, Linux) y SO de cliente (Windows 10/11, Ubuntu Desktop).",
+          "Funciones principales: gestión de usuarios, control de acceso, servicios de red (DHCP, DNS) y almacenamiento compartido.",
+          "La arquitectura puede ser cliente-servidor o punto a punto (P2P).",
+          "Los servidores deben ser estables, seguros y estar disponibles 24/7."
+        ],
+        conceptos: [
+          { t: "SO Servidor", d: "Gestiona y ofrece recursos al resto de equipos de la red." },
+          { t: "SO Cliente", d: "Accede a los recursos que ofrece el servidor." },
+          { t: "Dominio", d: "Conjunto de equipos y usuarios gestionados de forma centralizada." }
+        ]
+      },
+      "Windows Server": {
+        puntos: [
+          "Sistema operativo de Microsoft orientado a servidores empresariales.",
+          "Active Directory (AD): gestiona usuarios, grupos, equipos y políticas de grupo (GPO).",
+          "DHCP Server: asigna direcciones IP automáticamente a los clientes.",
+          "DNS Server: resuelve nombres de dominio en direcciones IP dentro de la red.",
+          "Administración remota mediante RDP (Remote Desktop Protocol) y PowerShell.",
+          "Roles más usados: AD DS, DHCP, DNS, IIS (servidor web), File Server."
+        ],
+        conceptos: [
+          { t: "Active Directory", d: "Servicio de directorio centralizado para gestionar objetos de red." },
+          { t: "GPO", d: "Group Policy Object: políticas que se aplican a usuarios y equipos del dominio." },
+          { t: "RDP", d: "Remote Desktop Protocol: permite administrar el servidor de forma remota." }
+        ]
+      },
+      "Linux como servidor": {
+        puntos: [
+          "Distribuciones más usadas en servidor: Ubuntu Server, Debian, CentOS, Rocky Linux.",
+          "Ventajas: gratuito, estable, seguro, gran comunidad y alto rendimiento.",
+          "Administración por terminal (CLI): más potente y eficiente que la interfaz gráfica.",
+          "Gestión de servicios: systemctl start/stop/enable/status [servicio].",
+          "Gestión de usuarios: useradd, usermod, userdel, passwd.",
+          "Permisos de ficheros: chmod (permisos), chown (propietario), ls -l (listar)."
+        ],
+        conceptos: [
+          { t: "systemctl", d: "Herramienta para gestionar servicios del sistema en Linux moderno." },
+          { t: "chmod", d: "Cambia los permisos de lectura, escritura y ejecución de un fichero." },
+          { t: "chown", d: "Cambia el propietario y grupo de un fichero o directorio." }
+        ]
+      },
+      "Gestión de usuarios y permisos": {
+        puntos: [
+          "En Linux los usuarios se guardan en /etc/passwd y las contraseñas en /etc/shadow.",
+          "Los grupos se definen en /etc/group y permiten asignar permisos colectivos.",
+          "Permisos básicos: r (lectura=4), w (escritura=2), x (ejecución=1) para usuario, grupo y otros.",
+          "chmod 755 fichero → propietario todo, grupo y otros solo lectura y ejecución.",
+          "En Windows, los permisos NTFS se asignan desde las propiedades del fichero o carpeta.",
+          "El principio de mínimo privilegio: dar solo los permisos necesarios a cada usuario."
+        ],
+        conceptos: [
+          { t: "/etc/passwd", d: "Fichero que almacena la información de cuentas de usuario en Linux." },
+          { t: "Permiso 777", d: "Todos los usuarios tienen lectura, escritura y ejecución (inseguro)." },
+          { t: "sudo", d: "Permite ejecutar comandos con privilegios de administrador temporalmente." }
+        ]
+      },
+      "Servicios de directorio": {
+        puntos: [
+          "Un servicio de directorio almacena información sobre objetos de red: usuarios, equipos, impresoras.",
+          "Active Directory (Microsoft) es el más usado en entornos Windows empresariales.",
+          "LDAP (Lightweight Directory Access Protocol) es el estándar abierto para directorios.",
+          "Permite autenticación centralizada: un usuario, una contraseña para toda la red.",
+          "Unidades organizativas (OU): dividen el directorio en departamentos o sedes.",
+          "Con GPO se aplican configuraciones automáticamente a todos los equipos del dominio."
+        ],
+        conceptos: [
+          { t: "LDAP", d: "Protocolo estándar para acceder y gestionar servicios de directorio." },
+          { t: "OU (Unidad Organizativa)", d: "Contenedor dentro del AD para organizar objetos por departamento." },
+          { t: "Autenticación Kerberos", d: "Protocolo seguro usado por Active Directory para verificar identidades." }
+        ]
+      }
+    }
+  },
+  redes: {
+    nombre: "Servicios en red", ícono: "RE",
+    temas: {
+      "Modelo OSI y TCP/IP": {
+        puntos: [
+          "Modelo OSI: 7 capas → Física, Enlace, Red, Transporte, Sesión, Presentación, Aplicación.",
+          "Modelo TCP/IP: 4 capas → Acceso a red, Internet, Transporte, Aplicación.",
+          "Cada capa tiene una función específica y se comúnica solo con las capas adyacentes.",
+          "La encapsulación añade cabeceras en cada capa al enviar datos (PDU).",
+          "Capa de Red: direccionamiento IP y enrutamiento. Capa de Transporte: TCP/UDP.",
+          "TCP/IP es el modelo real que usa Internet; OSI es el modelo teórico de referencia."
+        ],
+        conceptos: [
+          { t: "PDU", d: "Protocol Data Unit: nombre del bloque de datos en cada capa (trama, paquete, segmento)." },
+          { t: "Encapsulación", d: "Proceso de añadir cabeceras de protocolo en cada capa al enviar datos." },
+          { t: "TCP vs UDP", d: "TCP: fiable y orientado a conexión. UDP: rápido pero sin garantía de entrega." }
+        ]
+      },
+      "Direccionamiento IP": {
+        puntos: [
+          "IPv4: 32 bits, formato decimal (ej: 192.168.1.1), ~4.300 millones de direcciones.",
+          "Clases: A (0.x.x.x), B (128.x.x.x), C (192.x.x.x). Privadas: 10.x, 172.16-31.x, 192.168.x.",
+          "Máscara de subred: indica qué parte es red y qué parte es host (ej: /24 = 255.255.255.0).",
+          "Subnetting: dividir una red en subredes más pequeñas para optimizar el uso de IPs.",
+          "IPv6: 128 bits, formato hexadecimal, soluciona el agotamiento de IPv4.",
+          "CIDR: notación compacta de la máscara (ej: 192.168.1.0/24)."
+        ],
+        conceptos: [
+          { t: "IP privada", d: "Usada dentro de redes locales, no enrutable en internet (ej: 192.168.x.x)." },
+          { t: "IP pública", d: "Asignada por el ISP, identifica la red en internet." },
+          { t: "Broadcast", d: "Dirección que envía datos a todos los equipos de una red (ej: 192.168.1.255)." }
+        ]
+      },
+      "Servicios DHCP y DNS": {
+        puntos: [
+          "DHCP (Dynamic Host Configuration Protocol): asigna automáticamente IP, máscara, puerta de enlace y DNS.",
+          "Proceso DHCP: Discover → Offer → Request → Acknowledge (DORA).",
+          "El servidor DHCP tiene un rango de IPs (pool) que distribuye a los clientes.",
+          "DNS (Domain Name System): traduce nombres de dominio a direcciones IP.",
+          "Tipos de registros DNS: A (IPv4), AAAA (IPv6), MX (correo), CNAME (alias), PTR (inverso).",
+          "Jerarquía DNS: raíz → TLD (.com, .es) → dominio → subdominio."
+        ],
+        conceptos: [
+          { t: "Proceso DORA", d: "Las 4 fases de DHCP: Discover, Offer, Request, Acknowledge." },
+          { t: "Registro A", d: "Tipo de registro DNS que asocia un nombre con una dirección IPv4." },
+          { t: "DNS Recursivo", d: "Servidor que busca la respuesta completa consultando otros servidores DNS." }
+        ]
+      },
+      "Configuración de routers y switches": {
+        puntos: [
+          "Router: interconecta redes diferentes, trabaja en capa 3 (Red). Toma decisiones de enrutamiento.",
+          "Switch: conecta dispositivos dentro de la misma red, trabaja en capa 2 (Enlace).",
+          "VLAN: segmenta una red física en varias redes lógicas independientes.",
+          "Rutas estáticas: configuradas manualmente. Rutas dinámicas: aprendidas con OSPF, RIP, BGP.",
+          "ACL (Access Control List): filtros de tráfico en routers basados en IP, puerto o protocolo.",
+          "Configuración básica Cisco: enable → conf t → interface → ip address → no shutdown."
+        ],
+        conceptos: [
+          { t: "VLAN", d: "Virtual LAN: segmentación lógica de la red independientemente del cableado físico." },
+          { t: "Gateway", d: "Puerta de enlace: IP del router que conecta la red local con el exterior." },
+          { t: "Tabla de enrutamiento", d: "Lista de rutas que usa el router para decidir por dónde reenviar paquetes." }
+        ]
+      },
+      "Servicios web y FTP": {
+        puntos: [
+          "Servidor web: responde peticiones HTTP/HTTPS y sirve páginas web. Puertos: 80 (HTTP), 443 (HTTPS).",
+          "Servidores más usados: Apache (Linux), Nginx (alto rendimiento), IIS (Windows).",
+          "Virtual Hosting: un servidor aloja múltiples dominios con una sola IP.",
+          "FTP (File Transfer Protocol): transfiere ficheros entre cliente y servidor. Puerto 21.",
+          "FTP activo vs FTP pasivo: diferencia en cómo se establece la conexión de datos.",
+          "FTPS y SFTP son versiones seguras de FTP con cifrado."
+        ],
+        conceptos: [
+          { t: "HTTP vs HTTPS", d: "HTTP sin cifrado (puerto 80). HTTPS cifrado con TLS/SSL (puerto 443)." },
+          { t: "Virtual Host", d: "Configuración que permite servir múltiples sitios web desde un mismo servidor." },
+          { t: "SFTP", d: "SSH File Transfer Protocol: transferencia de ficheros cifrada y segura." }
+        ]
+      }
+    }
+  },
+  seguridad: {
+    nombre: "Seguridad informática", ícono: "SI",
+    temas: {
+      "Principios de seguridad": {
+        puntos: [
+          "La seguridad informática se basa en la triada CIA: Confidencialidad, Integridad y Disponibilidad.",
+          "Confidencialidad: solo los usuarios autorizados acceden a la información.",
+          "Integridad: los datos no se modifican de forma no autorizada.",
+          "Disponibilidad: los sistemas y datos están accesibles cuando se necesitan.",
+          "Otros principios: Autenticación (verificar identidad), No repudio (no negar acciones), Trazabilidad.",
+          "La seguridad debe aplicarse en capas (defensa en profundidad)."
+        ],
+        conceptos: [
+          { t: "Triada CIA", d: "Confidencialidad, Integridad y Disponibilidad: pilares de la seguridad." },
+          { t: "Autenticación", d: "Proceso de verificar que un usuario es quien dice ser." },
+          { t: "No repudio", d: "Garantía de que una acción no puede ser negada por quien la realizó." }
+        ]
+      },
+      "Amenazas y vulnerabilidades": {
+        puntos: [
+          "Malware: software malicioso. Tipos: virus, gusano, troyano, ransomware, spyware, adware.",
+          "Ransomware: cifra los ficheros y pide rescate. Muy frecuente en empresas.",
+          "Phishing: correos fraudulentos que suplantan identidades para robar credenciales.",
+          "Ingeniería social: manipulación psicológica para obtener información confidencial.",
+          "DoS/DDoS: saturar un servidor para dejarlo inaccesible.",
+          "Vulnerabilidad: fallo en software o configuración que puede ser explotado por un atacante."
+        ],
+        conceptos: [
+          { t: "Ransomware", d: "Malware que cifra los datos y exige un pago para recuperarlos." },
+          { t: "Exploit", d: "Código o técnica que aprovecha una vulnerabilidad para atacar un sistema." },
+          { t: "DDoS", d: "Ataque de denegación de servicio distribuido desde múltiples equipos." }
+        ]
+      },
+      "Criptografía": {
+        puntos: [
+          "La criptografía transforma información legible (texto plano) en ilegible (texto cifrado).",
+          "Cifrado simétrico: misma clave para cifrar y descifrar. Ejemplo: AES. Rápido pero la clave debe compartirse.",
+          "Cifrado asimétrico: clave pública (cifrar) y clave privada (descifrar). Ejemplo: RSA.",
+          "Hash: función unidireccional que genera un resumen único del mensaje (MD5, SHA-256). No es cifrado.",
+          "Certificado digital: documento electrónico que vincula una clave pública con una identidad.",
+          "HTTPS usa TLS, que combina cifrado asimétrico (intercambio de claves) y simétrico (datos)."
+        ],
+        conceptos: [
+          { t: "AES", d: "Advanced Encryption Standard: algoritmo de cifrado simétrico más usado." },
+          { t: "RSA", d: "Algoritmo de cifrado asimétrico basado en factorización de números primos." },
+          { t: "SHA-256", d: "Función hash que genera un resumen de 256 bits, usada para verificar integridad." }
+        ]
+      },
+      "Copias de seguridad": {
+        puntos: [
+          "Backup completo: copia todos los datos. Lento de hacer, rápido de restaurar.",
+          "Backup incremental: copia solo los cambios desde el último backup (completo o incremental). Rápido.",
+          "Backup diferencial: copia los cambios desde el último backup completo. Equilibrio entre ambos.",
+          "Regla 3-2-1: 3 copias, en 2 soportes diferentes, 1 fuera de la ubicación principal.",
+          "Es obligatorio probar la restauración periódicamente.",
+          "Herramientas: rsync, Veeam, Windows Server Backup, Bacula."
+        ],
+        conceptos: [
+          { t: "Regla 3-2-1", d: "3 copias de los datos, en 2 medios distintos, con 1 copia offsite." },
+          { t: "RTO", d: "Recovery Time Objective: tiempo máximo aceptable para restaurar el servicio." },
+          { t: "RPO", d: "Recovery Point Objective: pérdida máxima de datos aceptable en caso de desastre." }
+        ]
+      },
+      "Cortafuegos y antivirus": {
+        puntos: [
+          "Cortafuegos (firewall): filtra el tráfico de red entrante y saliente según reglas definidas.",
+          "Tipos de firewall: de paquetes (capa red), de estado (rastrea conexiones), de aplicación (proxy).",
+          "Un antivirus detecta, bloquea y elimina malware usando firmas y análisis heurístico.",
+          "IDS (Intrusion Detection System): detecta intrusiones. IPS: las detecta y bloquea.",
+          "DMZ (Zona Desmilitarizada): red intermedia entre internet y la red interna, para servidores públicos.",
+          "La combinación firewall + antivirus + actualizaciones es la defensa básica de cualquier sistema."
+        ],
+        conceptos: [
+          { t: "Firewall de estado", d: "Rastrea el estado de las conexiones para filtrar tráfico de forma inteligente." },
+          { t: "DMZ", d: "Red separada donde se ubican servidores accesibles desde internet (web, mail, FTP)." },
+          { t: "Análisis heurístico", d: "Técnica que detecta malware nuevo por comportamiento, sin necesitar su firma." }
+        ]
+      }
+    }
+  },
+  web: {
+    nombre: "Aplicaciones web", ícono: "AW",
+    temas: {
+      "HTML y estructura web": {
+        puntos: [
+          "HTML (HyperText Markup Language): lenguaje de marcado para estructurar páginas web.",
+          "Estructura básica: <!DOCTYPE html> → <html> → <head> (metadatos) → <body> (contenido visible).",
+          "Etiquetas semánticas HTML5: <header>, <nav>, <main>, <section>, <article>, <aside>, <footer>.",
+          "Formularios: <form>, <input>, <select>, <textárea>, <button>. Atributos: action, method.",
+          "Atributos globales importantes: id (único), class (múltiple), style, href, src, alt.",
+          "El DOM (Document Object Model) es la representación en árbol del HTML en el navegador."
+        ],
+        conceptos: [
+          { t: "Etiquetas semánticas", d: "Etiquetas HTML5 que describen el significado del contenido (nav, article, etc.)." },
+          { t: "DOM", d: "Document Object Model: representación en árbol del HTML accesible con JavaScript." },
+          { t: "Atributo alt", d: "Texto alternativo para imágenes, mejora accesibilidad y SEO." }
+        ]
+      },
+      "CSS y diseno": {
+        puntos: [
+          "CSS (Cascading Style Sheets): controla la presentación visual del HTML.",
+          "Selectores: etiqueta (p), clase (.clase), ID (#id), atributo ([type='text']), pseudo-clase (:hover).",
+          "Box model: content → padding → border → margin. Afecta al tamaño y espacio de los elementos.",
+          "Flexbox: layout unidimensional (fila o columna). Propiedades: display:flex, justify-content, align-items.",
+          "Grid: layout bidimensional (filas y columnas). Propiedades: grid-template-columns, grid-gap.",
+          "Media queries: adaptan el diseño a diferentes tamaños de pantalla (diseño responsive)."
+        ],
+        conceptos: [
+          { t: "Box Model", d: "Modelo de caja CSS: content, padding, border y margin definen el espacio de un elemento." },
+          { t: "Flexbox", d: "Sistema de layout CSS para alinear elementos en una dimensión (fila o columna)." },
+          { t: "Media Query", d: "@media (max-width: 768px) { ... } — aplica estilos según el tamaño de pantalla." }
+        ]
+      },
+      "JavaScript básico": {
+        puntos: [
+          "JavaScript es el lenguaje de programación del lado del cliente (navegador).",
+          "Tipos de datos: number, string, boolean, array, object, null, undefined.",
+          "Manipulación del DOM: getElementById(), querySelector(), innerHTML, textContent, classList.",
+          "Eventos: addEventListener('click', función), onsubmit, onchange, onkeyup.",
+          "Funciones: function nombre() {}, arrow functions: const nombre = () => {}.",
+          "fetch() para hacer peticiones HTTP asíncronas a APIs sin recargar la página (AJAX)."
+        ],
+        conceptos: [
+          { t: "addEventListener", d: "Método para escuchar eventos del DOM (click, submit, keyup...) y reaccionar." },
+          { t: "Arrow function", d: "Sintaxis compacta para funciones: const suma = (a, b) => a + b;" },
+          { t: "fetch()", d: "API moderna para realizar peticiones HTTP asíncronas desde el navegador." }
+        ]
+      },
+      "Servidores web": {
+        puntos: [
+          "Un servidor web recibe peticiones HTTP y devuelve recursos (HTML, CSS, imágenes, etc.).",
+          "Apache: el más extendido en Linux, modular y configurable con ficheros .htaccess.",
+          "Nginx: alto rendimiento, ideal como proxy inverso y para mucho tráfico.",
+          "IIS (Internet Information Services): servidor web de Microsoft para Windows.",
+          "PHP es el lenguaje de servidor más usado con Apache. Node.js es la alternativa moderna.",
+          "HTTPS requiere un certificado SSL/TLS. Let's Encrypt ofrece certificados gratuitos."
+        ],
+        conceptos: [
+          { t: "Proxy inverso", d: "Nginx actúa como intermediario entre clientes e internet, distribuyendo carga." },
+          { t: ".htaccess", d: "Fichero de configuración de Apache que permite reglas por directorio." },
+          { t: "Let's Encrypt", d: "Autoridad certificadora gratuita y automática para HTTPS." }
+        ]
+      },
+      "Bases de datos web": {
+        puntos: [
+          "Las aplicaciones web usan bases de datos para almacenar y recuperar información dinámicamente.",
+          "SGBD relacionales más usados: MySQL, MariaDB, PostgreSQL. Lenguaje: SQL.",
+          "Sentencias SQL básicas: SELECT, INSERT, UPDATE, DELETE, CREATE TABLE, JOIN.",
+          "PHP se conecta a MySQL con PDO o mysqli. Node.js usa librerías como mysql2 o sequelize.",
+          "Inyección SQL: ataque que inserta código SQL malicioso en formularios. Usar sentencias preparadas.",
+          "phpMyAdmin: herramienta gráfica web para gestionar bases de datos MySQL."
+        ],
+        conceptos: [
+          { t: "SQL", d: "Structured Query Language: lenguaje estándar para gestionar bases de datos relacionales." },
+          { t: "Inyección SQL", d: "Vulnerabilidad al no sanear entradas: el atacante manipula consultas SQL." },
+          { t: "Sentencias preparadas", d: "Consultas parametrizadas que evitan la inyección SQL separando código de datos." }
+        ]
+      }
+    }
+  },
+  ingles: {
+    nombre: "Ingles profesional", ícono: "IN",
+    temas: {
+      "Vocabulario técnico": {
+        puntos: [
+          "Hardware: motherboard (placa base), RAM (memoria), hard drive (disco duro), CPU (procesador), PSU (fuente de alimentación).",
+          "Software: operating system (SO), driver (controlador), update/patch (actualización), bug (error), crash (fallo).",
+          "Redes: router, switch, firewall, bandwidth (ancho de banda), IP address, gateway (puerta de enlace).",
+          "Desarrollo: code (código), debug (depurar), deploy (desplegar), framework, repository (repositorio), commit.",
+          "Seguridad: threat (amenaza), vulnerability (vulnerabilidad), encryption (cifrado), breach (brecha).",
+          "Cloud: server (servidor), cloud storage (almacenamiento en nube), backup, scalability (escalabilidad)."
+        ],
+        conceptos: [
+          { t: "Troubleshoot", d: "Diagnosticar y resolver problemas técnicos." },
+          { t: "Bandwidth", d: "Ancho de banda: capacidad máxima de transmisión de datos de una red." },
+          { t: "Deploy", d: "Desplegar: poner una aplicación en funcionamiento en un entorno de producción." }
+        ]
+      },
+      "Redacción de emails": {
+        puntos: [
+          "Estructura: Subject (asunto claro) → Greeting → Opening line → Body → Closing → Signature.",
+          "Saludos formales: Dear Mr./Ms. [apellido], Dear Sir/Madam (sin nombre).",
+          "Apertura: I am writing to inform you... / I am writing with regard to...",
+          "Adjuntos: Please find attached... / I have attached... / As per your request, I enclose...",
+          "Cierre: I look forward to hearing from you. / Please do not hesitate to contact me.",
+          "Despedidas: Yours sincerely (si sabes el nombre), Yours faithfully (si no lo sabes), Kind regards."
+        ],
+        conceptos: [
+          { t: "Yours sincerely", d: "Despedida cuando conoces el nombre del destinatario." },
+          { t: "Yours faithfully", d: "Despedida cuando NO conoces el nombre (Dear Sir/Madam)." },
+          { t: "CC / BCC", d: "Carbon Copy / Blind Carbon Copy: copiar a otras personas en el email." }
+        ]
+      },
+      "Documentacion técnica": {
+        puntos: [
+          "La documentación técnica en inglés incluye: manuals, guides, changelogs, README files, API docs.",
+          "Uso de voz pasiva e imperativo: 'Click the button', 'The file is saved to...', 'Do not modify...'",
+          "Estructura de un README: Title, Description, Installation, Usage, Configuration, License.",
+          "Changelog: lista de cambios por versión. Formato: Added, Changed, Fixed, Removed.",
+          "Comentarios en código en inglés: breves, explicativos del 'por qué', no del 'qué'.",
+          "Glosarios técnicos: definiciones precisas de términos del producto o sistema."
+        ],
+        conceptos: [
+          { t: "README", d: "Fichero de presentación de un proyecto: descripción, instalación y uso básico." },
+          { t: "Changelog", d: "Documento que lista todos los cambios de cada versión de un software." },
+          { t: "API docs", d: "Documentación que describe cómo usar una interfaz de programación (API)." }
+        ]
+      },
+      "Presentaciones orales": {
+        puntos: [
+          "Estructura: Introduction → Main points → Conclusion → Q&A.",
+          "Apertura: 'Good morning, today I'm going to talk about...', 'My presentation covers...'",
+          "Conectores de secuencia: First, Then, After that, Finally.",
+          "Conectores de contraste: However, On the other hand, Although, Despite.",
+          "Conectores de adición: Furthermore, Moreover, In addition, Also.",
+          "Cierre: 'To sum up...', 'In conclusion...', 'Thank you for your attention. Any questions?'"
+        ],
+        conceptos: [
+          { t: "To sum up", d: "Conector para resumir las ideas principales al final de una presentación." },
+          { t: "Moreover", d: "Conector para añadir información adicional de mayor importancia." },
+          { t: "Q&A", d: "Questions and Answers: turno de preguntas al final de la presentación." }
+        ]
+      }
+    }
+  },
+  digitalización: {
+    nombre: "Digitalización aplicada", ícono: "DA",
+    temas: {
+      "Transformación digital": {
+        puntos: [
+          "La transformación digital es la integración de tecnología digital en todas las áreas de una empresa.",
+          "No es solo tecnología: implica cambio cultural, nuevos procesos y modelos de negocio.",
+          "Pilares: automatización de procesos, análisis de datos, experiencia digital del cliente y agilidad.",
+          "Tecnologías clave: cloud, IA, IoT, Big Data, blockchain, ciberseguridad.",
+          "Metodologías ágiles (Scrum, Kanban) facilitan la transformación y la innovación continua.",
+          "Las empresas que no se digitalizan pierden competitividad frente a las que sí lo hacen."
+        ],
+        conceptos: [
+          { t: "Automatización", d: "Uso de tecnología para ejecutar tareas repetitivas sin intervención humana." },
+          { t: "Agilidad", d: "Capacidad de adaptarse rápidamente a cambios del mercado o del cliente." },
+          { t: "Scrum", d: "Metodología ágil que trabaja en sprints cortos para entregar valor continuamente." }
+        ]
+      },
+      "Cloud computing": {
+        puntos: [
+          "Cloud computing: acceso a recursos informáticos (servidores, almacenamiento, software) por internet.",
+          "IaaS: infraestructura como servicio (servidores virtuales). Ejemplo: AWS EC2, Azure VMs.",
+          "PaaS: plataforma como servicio (entorno de desarrollo). Ejemplo: Google App Engine, Heroku.",
+          "SaaS: software como servicio (aplicación lista para usar). Ejemplo: Gmail, Office 365, Salesforce.",
+          "Nube pública (AWS, Azure, GCP), privada (infraestructura propia) e híbrida (combinación).",
+          "Ventajas: escalabilidad, pago por uso, sin mantenimiento de hardware, alta disponibilidad."
+        ],
+        conceptos: [
+          { t: "IaaS", d: "Infrastructure as a Service: alquiler de servidores y redes virtuales en la nube." },
+          { t: "SaaS", d: "Software as a Service: aplicación completa accesible vía navegador sin instalación." },
+          { t: "Escalabilidad", d: "Capacidad de aumentar o reducir recursos según la demanda en tiempo real." }
+        ]
+      },
+      "Big Data e IoT": {
+        puntos: [
+          "Big Data: conjuntos de datos tan grandes y complejos que requieren herramientas especiales para procesarlos.",
+          "Las 5 V del Big Data: Volumen, Velocidad, Variedad, Veracidad, Valor.",
+          "Herramientas: Hadoop, Spark, Kafka para procesamiento; Tableau, Power BI para visualización.",
+          "IoT (Internet of Things): dispositivos físicos conectados a internet que recopilan y transmiten datos.",
+          "Ejemplos IoT: sensores industriales, domótica, wearables, vehículos conectados, smart cities.",
+          "Big Data + IoT permiten mantenimiento predictivo, optimización de procesos y decisiones en tiempo real."
+        ],
+        conceptos: [
+          { t: "Las 5V del Big Data", d: "Volumen, Velocidad, Variedad, Veracidad y Valor de los datos masivos." },
+          { t: "IoT", d: "Internet of Things: red de objetos físicos con sensores conectados a internet." },
+          { t: "Mantenimiento predictivo", d: "Usar datos de sensores IoT para predecir fallos antes de que ocurran." }
+        ]
+      },
+      "Ciberseguridad en la empresa": {
+        puntos: [
+          "La ciberseguridad empresarial protege los activos digitales, datos e infraestructura de la empresa.",
+          "RGPD (Reglamento General de Protección de Datos): obligatorio en la UE para gestionar datos personales.",
+          "Política de seguridad: documento que define normas, responsabilidades y procedimientos de seguridad.",
+          "Gestión de identidades (IAM): controlar quién accede a qué recursos y con qué permisos.",
+          "Plan de respuesta a incidentes: pasos a seguir cuando ocurre un ataque (detección, contención, recuperación).",
+          "Formación continua de empleados: el factor humano es el eslabón más débil de la seguridad."
+        ],
+        conceptos: [
+          { t: "RGPD", d: "Reglamento europeo de protección de datos personales, vigente desde 2018." },
+          { t: "IAM", d: "Identity and Access Management: gestión centralizada de identidades y permisos." },
+          { t: "Zero Trust", d: "Modelo de seguridad que no confía en nadie por defecto, ni dentro ni fuera de la red." }
+        ]
+      }
+    }
+  },
+  empleabilidad: {
+    nombre: "Itinerario para la empleabilidad II", ícono: "EM",
+    temas: {
+      "Búsqueda de empleo": {
+        puntos: [
+          "El CV (Currículum Vitae) debe ser claro, actualizado y adaptado a cada oferta (1-2 páginas máx.).",
+          "Secciones del CV: datos personales, perfil profesional, experiencia, formación, habilidades, idiomas.",
+          "Carta de presentación: complementa el CV, explica motivación y encaje con el puesto.",
+          "Portales de empleo: InfoJobs, LinkedIn, Indeed, Tecnoempleo (sector TIC), SEPE.",
+          "LinkedIn: red profesional clave. Perfil completo, foto profesional, palabras clave en el título.",
+          "Preparar entrevistas: STAR (Situación, Tarea, Acción, Resultado) para responder preguntas conductuales."
+        ],
+        conceptos: [
+          { t: "Método STAR", d: "Técnica para responder entrevistas: Situación, Tarea, Acción, Resultado." },
+          { t: "Marca personal", d: "Imagen profesional que proyectas en redes y en tu sector laboral." },
+          { t: "ATS", d: "Applicant Tracking System: software que filtra CVs por palabras clave antes de llegar al recruiter." }
+        ]
+      },
+      "Derechos laborales": {
+        puntos: [
+          "El Estatuto de los Trabajadores regula los derechos y obligaciones laborales en España.",
+          "Jornada laboral: máximo 40 horas semanales ordinarias, con registro horario obligatorio.",
+          "Vacaciones: mínimo 30 días naturales al año (no sustituibles por dinero).",
+          "Tipos de contrato: indefinido, temporal, en prácticas, para la formación y el aprendizaje.",
+          "Despido procedente (causa justificada), improcedente (sin causa) y nulo (discriminatorio).",
+          "La nómina incluye: salario base, complementos, cotizaciones SS y IRPF retenido."
+        ],
+        conceptos: [
+          { t: "SMI", d: "Salario Mínimo Interprofesional: salario mínimo legal fijado anualmente por el gobierno." },
+          { t: "Cotización a la SS", d: "Aportaciones a la Seguridad Social que cubren prestaciones (paro, pensión, salud)." },
+          { t: "ERTE", d: "Expediente de Regulación Temporal de Empleo: suspensión temporal del contrato." }
+        ]
+      },
+      "Prevención de riesgos": {
+        puntos: [
+          "Ley 31/1995 de Prevención de Riesgos Laborales: obliga a empresas a garantizar la seguridad de trabajadores.",
+          "Ergonomía informática: postura correcta, monitor a la altura de los ojos, silla regulable, reposamuñecas.",
+          "Pantalla: a 50-70 cm de distancia, sin reflejos, brillo adecuado. Regla 20-20-20 para descansar la vista.",
+          "Riesgos frecuentes en TIC: fatiga visual, lesiones musculoesqueléticas (RSI), estrés laboral.",
+          "El empresario debe realizar evaluaciones de riesgos y proporcionar formación e información.",
+          "Los trabajadores tienen derecho a interrumpir tareas de riesgo grave e inmediato."
+        ],
+        conceptos: [
+          { t: "Ergonomía", d: "Ciencia que adapta el entorno de trabajo a las características del trabajador." },
+          { t: "RSI", d: "Repetitive Strain Injury: lesión por movimientos repetitivos (síndrome del túnel carpiano)." },
+          { t: "Regla 20-20-20", d: "Cada 20 min, mirar 20 segundos a un objeto a 20 pies (~6m) de distancia." }
+        ]
+      },
+      "Emprendimiento": {
+        puntos: [
+          "Emprender: crear y gestionar una empresa asumiendo riesgos económicos para obtener beneficios.",
+          "Plan de empresa: análisis de mercado, modelo de negocio, plan financiero y plan de marketing.",
+          "Formas jurídicas: Autónomo (simple, responsabilidad ilimitada), SL (capital mínimo 3.000€), SA.",
+          "Fuentes de financiación: ahorros propios, préstamos bancarios, inversores (business angels), crowdfunding.",
+          "Trámites de constitución de SL: escritura notarial, inscripción en el Registro Mercantil, alta en Hacienda y SS.",
+          "Sector TIC: alta demanda de startups, apps, ciberseguridad, desarrollo web y consultoría IT."
+        ],
+        conceptos: [
+          { t: "Business Angel", d: "Inversor privado que aporta capital y experiencia a startups a cambio de participación." },
+          { t: "Crowdfunding", d: "Financiación colectiva a través de plataformas online (Kickstarter, Verkami)." },
+          { t: "Canvas", d: "Business Model Canvas: plantilla visual para definir el modelo de negocio de una empresa." }
+        ]
+      }
+    }
+  },
+  sostenibilidad: {
+    nombre: "Sostenibilidad aplicada al sistema productivo", ícono: "SS",
+    temas: {
+      "Desarrollo sostenible": {
+        puntos: [
+          "Desarrollo sostenible: satisfacer las necesidades del presente sin comprometer las de las generaciones futuras (Informe Brundtland, 1987).",
+          "La ONU estableció en 2015 los 17 ODS (Objetivos de Desarrollo Sostenible) de la Agenda 2030.",
+          "ODS relevantes en TIC: ODS 9 (industria e innovación), ODS 12 (producción responsable), ODS 13 (clima).",
+          "Los tres pilares del desarrollo sostenible: económico, social y medioambiental.",
+          "En TIC: eficiencia energética de los centros de datos, reciclaje de equipos, software eficiente.",
+          "Las empresas TIC deben integrar criterios ESG (Environmental, Social, Governance) en su gestión."
+        ],
+        conceptos: [
+          { t: "ODS", d: "Objetivos de Desarrollo Sostenible: 17 metas globales de la ONU para 2030." },
+          { t: "Agenda 2030", d: "Plan de acción mundial con 17 ODS adoptado por 193 países en 2015." },
+          { t: "ESG", d: "Environmental, Social, Governance: criterios de sostenibilidad empresarial." }
+        ]
+      },
+      "Economía circular": {
+        puntos: [
+          "Economía lineal: extraer → producir → usar → tirar. Insostenible por el agotamiento de recursos.",
+          "Economía circular: diseñar productos para ser reutilizados, reparados, remanufacturados y reciclados.",
+          "En informática: reparar equipos antes de desecharlos, comprar reacondicionados, actualizar en vez de cambiar.",
+          "Reciclaje de RAEE (Residuos de Aparatos Eléctricos y Electrónicos): obligatorio en la UE.",
+          "Puntos limpios y fabricantes: deben gestionar el reciclaje de los dispositivos que venden.",
+          "Beneficios: reducción de residuos, ahorro económico, menor extracción de materias primas."
+        ],
+        conceptos: [
+          { t: "RAEE", d: "Residuos de Aparatos Eléctricos y Electrónicos: móviles, PCs, impresoras, etc." },
+          { t: "Reacondicionado", d: "Equipo usado que ha sido reparado, limpiado y verificado para volver a venderse." },
+          { t: "Ecodiseño", d: "Diseño de productos considerando el impacto ambiental en todo su ciclo de vida." }
+        ]
+      },
+      "Huella de carbono digital": {
+        puntos: [
+          "La tecnología digital genera entre el 3-4% de las emisiones globales de CO2.",
+          "Centros de datos (data centers): grandes consumidores de energía eléctrica y agua para refrigeración.",
+          "Fabricación de dispositivos: la mayor parte de emisiones ocurre en la fabricación, no en el uso.",
+          "Un email con adjunto emite ~50g de CO2. Ver vídeo en streaming: ~36g CO2/hora.",
+          "Cómo reducirla: apagar equipos, usar modo ahorro, optimizar código, elegir proveedores verdes (100% renovable).",
+          "PUE (Power Usage Effectiveness): ratio de eficiencia energética de un data center. Ideal: cerca de 1.0."
+        ],
+        conceptos: [
+          { t: "Huella de carbono", d: "Total de emisiones de CO2 generadas por una actividad, producto o persona." },
+          { t: "PUE", d: "Power Usage Effectiveness: energía total del data center / energía usada por los servidores." },
+          { t: "Green IT", d: "Conjunto de prácticas para reducir el impacto ambiental de la tecnología." }
+        ]
+      },
+      "Normativa medioambiental": {
+        puntos: [
+          "Directiva RAEE (2012/19/UE): obliga a gestionar correctamente los residuos electrónicos en la UE.",
+          "RoHS: restringe el uso de sustancias peligrosas (plomo, mercurio) en equipos electrónicos.",
+          "RGPD: aunque es de protección de datos, también implica eficiencia en el almacenamiento (minimización).",
+          "ISO 14001: norma de gestión ambiental que certifica sistemas de gestión medioambiental en empresas.",
+          "ISO 50001: norma de gestión de la energía para mejorar la eficiencia energética.",
+          "Reglamento de Ecodiseño: exige que los productos electrónicos sean más duraderos y reparables."
+        ],
+        conceptos: [
+          { t: "Directiva RAEE", d: "Normativa europea que regula la recogida y reciclaje de residuos electrónicos." },
+          { t: "RoHS", d: "Restricción de Sustancias Peligrosas en equipos eléctricos y electrónicos." },
+          { t: "ISO 14001", d: "Norma internacional para sistemas de gestión ambiental en organizaciones." }
+        ]
+      }
+    }
+  },
+  robótica: {
+    nombre: "Robótica", ícono: "RO",
+    temas: {
+      "Introducción a la robótica": {
+        puntos: [
+          "Robot: máquina programable que puede realizar tareas de forma autónoma o semiautónoma.",
+          "Componentes básicos de un robot: sensores (entrada), procesador (control), actuadores (salida) y fuente de energía.",
+          "Tipos de robots: industriales (brazos articulados), de servicio (asistentes, limpieza), educativos (Arduino, mBot), autónomos (drones, coches).",
+          "Grados de libertad (DOF): número de movimientos independientes que puede realizar un robot.",
+          "Teleoperación: control remoto de un robot por un humano (drones, cirugía robótica).",
+          "La robótica combina mecánica, electrónica, informática e inteligencia artificial."
+        ],
+        conceptos: [
+          { t: "Actuador", d: "Componente que convierte una señal eléctrica en movimiento físico (motor, servo)." },
+          { t: "Grados de libertad", d: "Número de ejes de movimiento independientes de un robot (más = más versátil)." },
+          { t: "Robot autónomo", d: "Robot que toma decisiones sin intervención humana basándose en sus sensores." }
+        ]
+      },
+      "Arduino y electrónica básica": {
+        puntos: [
+          "Arduino: plataforma de hardware libre basada en un microcontrolador ATmega programable.",
+          "Modelos populares: Arduino Uno, Nano, Mega. Cada uno tiene diferente número de pines y memoria.",
+          "Pines digitales: solo HIGH/LOW. Pines analógicos (A0-A5): leen valores continuos (0-1023).",
+          "PWM (Pulse Width Modulation): simula señales analógicas para controlar motores y LEDs con intensidad variable.",
+          "Componentes básicos: LED, resistencia, pulsador, potenciómetro, servo, sensor HC-SR04 (ultrasonidos), DHT11 (temperatura).",
+          "Circuito básico: siempre conectar resistencia en serie con LEDs (220Ω-1kΩ) para no quemarlos."
+        ],
+        conceptos: [
+          { t: "Microcontrolador", d: "Chip que integra procesador, memoria y entradas/salidas en un solo componente." },
+          { t: "PWM", d: "Modulación por ancho de pulso: técnica para simular salida analógica con pines digitales." },
+          { t: "HC-SR04", d: "Sensor de ultrasonidos para medir distancias de 2cm a 4m." }
+        ]
+      },
+      "Programación de robots": {
+        puntos: [
+          "IDE de Arduino: entorno de programación gratuito. Lenguaje basado en C/C++.",
+          "Estructura básica: setup() (se ejecuta una vez al inicio) y loop() (se repite continuamente).",
+          "Funciones básicas: pinMode(), digitalWrite(), digitalRead(), analogRead(), delay(), Serial.println().",
+          "Programación por bloques: mBlock, Scratch, Tinkercad Circuits (ideal para comenzar sin código).",
+          "Lógica de control: if/else para decisiones, for/while para repetición, funciones para organizar el código.",
+          "Librerías Arduino: Servo.h (servomotores), Wire.h (I2C), SoftwareSerial.h, DHT.h."
+        ],
+        conceptos: [
+          { t: "setup()", d: "Función que se ejecuta una sola vez al iniciar Arduino. Se usa para configurar pines." },
+          { t: "loop()", d: "Función que se repite indefinidamente. Contiene la lógica principal del programa." },
+          { t: "Librería", d: "Código preescrito que añade funcionalidades extra a Arduino (ej: Servo.h)." }
+        ]
+      },
+      "Aplicaciones prácticas": {
+        puntos: [
+          "Robótica industrial: brazos robóticos en cadenas de montaje (automoción, electrónica), soldadura, pintura.",
+          "Robots de servicio: aspiradoras autónomas (Roomba), asistentes (Pepper), robots quirúrgicos (Da Vinci).",
+          "Drones (UAV): inspección de infraestructuras, agricultura de precisión, reparto, fotografía aérea.",
+          "Vehículos autónomos: usan sensores LiDAR, cámaras y IA para navegar sin conductor.",
+          "Domótica y IoT: automatización del hogar (luces, persianas, termostatos) con Arduino o Raspberry Pi.",
+          "Proyectos SMR típicos: robot seguidor de línea, brazo robótico, sistema de riego automático, alarma con sensor."
+        ],
+        conceptos: [
+          { t: "LiDAR", d: "Sensor que usa pulsos láser para crear mapas 3D del entorno (vehículos autónomos)." },
+          { t: "Robot Da Vinci", d: "Sistema robótico de cirugía mínimamente invasiva controlado por un cirujano." },
+          { t: "Domótica", d: "Automatización del hogar mediante tecnología para mejorar confort, seguridad y eficiencia." }
+        ]
+      }
+    }
+  }
+};
+
+// =============================================
+// TESTS — con campo "explicacion" en cada pregunta
+// =============================================
+
+const TESTS = {
+  so: {
+    nombre: "Sistemas operativos en red",
+    preguntas: [
+      { texto: "¿Qué servicio de Windows Server gestiona usuarios y políticas de grupo de forma centralizada?", opciones: ["DHCP", "Active Directory", "FTP"], correcta: 1, explicacion: "Active Directory (AD) es el servicio de directorio de Microsoft que gestiona usuarios, grupos, equipos y políticas de grupo (GPO) de forma centralizada en un dominio Windows." },
+      { texto: "¿Qué comando de Linux se usa para cambiar los permisos de un fichero?", opciones: ["chown", "chmod", "usermod"], correcta: 1, explicacion: "chmod (change mode) modifica los permisos de lectura, escritura y ejecución de un fichero. chown cambia el propietario, y usermod modifica propiedades de usuarios." },
+      { texto: "¿Cuál es la función principal del servicio DHCP?", opciones: ["Resolver nombres de dominio", "Asignar direcciones IP automáticamente", "Gestionar ficheros compartidos"], correcta: 1, explicacion: "DHCP (Dynamic Host Configuration Protocol) asigna automáticamente dirección IP, máscara de subred, puerta de enlace y DNS a los equipos de la red mediante el proceso DORA." },
+      { texto: "¿Qué fichero de Linux contiene la información de las cuentas de usuario?", opciones: ["/etc/group", "/etc/shadow", "/etc/passwd"], correcta: 2, explicacion: "/etc/passwd almacena la información básica de cada usuario (nombre, UID, directorio home, shell). /etc/shadow guarda las contraseñas cifradas y /etc/group los grupos del sistema." },
+      { texto: "¿Qué comando de Linux se usa para gestionar servicios del sistema?", opciones: ["systemctl", "useradd", "ifconfig"], correcta: 0, explicacion: "systemctl es la herramienta principal para gestionar servicios en sistemas Linux modernos con systemd. Permite iniciar, parar, reiniciar, habilitar y ver el estado de los servicios." },
+      { texto: "¿Qué protocolo utiliza Active Directory para la autenticación?", opciones: ["FTP", "Kerberos", "SMTP"], correcta: 1, explicacion: "Kerberos es el protocolo de autenticación utilizado por Active Directory. Funciona con tickets cifrados y permite la autenticación segura de usuarios sin enviar contraseñas por la red." },
+      { texto: "¿Qué tipo de sistema operativo es Ubuntu Server?", opciones: ["Propietario y de pago", "Libre y de código abierto", "Solo para servidores de pago"], correcta: 1, explicacion: "Ubuntu Server es una distribución Linux de código abierto y gratuita, basada en Debian, muy popular para servidores por su estabilidad, seguridad y amplia comunidad de soporte." },
+      { texto: "¿Cuál es la función del servicio DNS?", opciones: ["Asignar IPs automáticamente", "Traducir nombres de dominio a direcciones IP", "Gestionar usuarios del dominio"], correcta: 1, explicacion: "DNS (Domain Name System) traduce nombres de dominio legibles (como www.google.com) a sus correspondientes direcciones IP numéricas, actuando como la 'guía telefónica' de internet." },
+      { texto: "¿Qué comando de Linux crea un nuevo usuario?", opciones: ["usermod", "useradd", "passwd"], correcta: 1, explicacion: "useradd crea una nueva cuenta de usuario en Linux. usermod modifica un usuario existente y passwd cambia la contraseña de un usuario ya creado." },
+      { texto: "¿Qué significa GPO en Windows Server?", opciones: ["General Protocol Options", "Group Policy Object", "Global Permission Override"], correcta: 1, explicacion: "GPO (Group Policy Object) son políticas de grupo que permiten configurar y gestionar de forma centralizada el comportamiento de usuarios y equipos en un dominio de Active Directory." }
+    ]
+  },
+  redes: {
+    nombre: "Servicios en red",
+    preguntas: [
+      { texto: "¿Cuántas capas tiene el modelo OSI?", opciones: ["4", "5", "7"], correcta: 2, explicacion: "El modelo OSI (Open Systems Interconnection) tiene 7 capas: Física, Enlace de datos, Red, Transporte, Sesión, Presentación y Aplicación. El modelo TCP/IP es el simplificado con 4 capas." },
+      { texto: "¿Qué capa del modelo OSI se encarga del direccionamiento IP?", opciones: ["Capa de enlace", "Capa de red", "Capa de transporte"], correcta: 1, explicacion: "La capa 3 (Red) se encarga del direccionamiento lógico (IP) y el enrutamiento de paquetes entre redes. Los routers operan en esta capa." },
+      { texto: "¿Cuántos bits tiene una dirección IPv4?", opciones: ["32", "64", "128"], correcta: 0, explicacion: "IPv4 usa 32 bits organizados en 4 octetos en notación decimal (ej: 192.168.1.1). Esto limita el espacio a ~4.300 millones de direcciones. IPv6 usa 128 bits para solucionar este agotamiento." },
+      { texto: "¿Qué dispositivo de red interconecta redes diferentes?", opciones: ["Switch", "Hub", "Router"], correcta: 2, explicacion: "El router trabaja en la capa 3 (Red) y toma decisiones de enrutamiento para interconectar redes distintas. El switch conecta dispositivos dentro de la misma red (capa 2) y el hub simplemente repite señales." },
+      { texto: "¿Qué protocolo de transporte garantiza la entrega ordenada de paquetes?", opciones: ["UDP", "TCP", "IP"], correcta: 1, explicacion: "TCP (Transmission Control Protocol) es orientado a conexión y garantiza la entrega ordenada y sin errores mediante acuses de recibo. UDP es más rápido pero no garantiza la entrega." },
+      { texto: "¿Qué máscara de subred corresponde a una red de clase C?", opciones: ["255.0.0.0", "255.255.0.0", "255.255.255.0"], correcta: 2, explicacion: "La clase C usa la máscara 255.255.255.0 (/24), permitiendo hasta 254 hosts por red. La clase A usa 255.0.0.0 (/8) y la clase B usa 255.255.0.0 (/16)." },
+      { texto: "¿Qué puerto usa el protocolo HTTP por defecto?", opciones: ["21", "80", "443"], correcta: 1, explicacion: "HTTP usa el puerto 80 por defecto. HTTPS (HTTP seguro con TLS) usa el 443 y FTP usa el 21. Estos puertos están definidos por la IANA." },
+      { texto: "¿Qué significa VLAN?", opciones: ["Virtual Local Area Network", "Variable Length Area Network", "Virtual Link Access Node"], correcta: 0, explicacion: "VLAN (Virtual Local Area Network) permite segmentar lógicamente una red física en varias redes independientes, mejorando la seguridad y el rendimiento sin necesidad de hardware adicional." },
+      { texto: "¿Qué protocolo se usa para transferir ficheros entre equipos?", opciones: ["SMTP", "FTP", "DNS"], correcta: 1, explicacion: "FTP (File Transfer Protocol) es el protocolo estándar para la transferencia de ficheros, usando el puerto 21. SMTP es para correo electrónico y DNS para resolución de nombres." },
+      { texto: "¿Cuántos bits tiene una dirección IPv6?", opciones: ["32", "64", "128"], correcta: 2, explicacion: "IPv6 usa 128 bits en formato hexadecimal (ej: 2001:0db8:85a3::8a2e:0370:7334), lo que proporciona 3,4×10³⁸ direcciones posibles, solucionando el agotamiento de IPv4." }
+    ]
+  },
+  seguridad: {
+    nombre: "Seguridad informática",
+    preguntas: [
+      { texto: "¿Cuáles son los tres pilares de la seguridad informática?", opciones: ["Hardware, software y redes", "Confidencialidad, integridad y disponibilidad", "Usuarios, datos y sistemas"], correcta: 1, explicacion: "La triada CIA es el fundamento de la seguridad: Confidencialidad (solo acceden los autorizados), Integridad (datos no alterados sin autorización) y Disponibilidad (acceso cuando se necesita)." },
+      { texto: "¿Qué tipo de malware cifra los archivos y pide un rescate económico?", opciones: ["Virus", "Troyano", "Ransomware"], correcta: 2, explicacion: "El ransomware cifra los ficheros de la víctima y exige un pago (generalmente en criptomonedas) para recuperar la clave de descifrado. Es uno de los ataques más comunes en empresas." },
+      { texto: "¿Qué algoritmo de cifrado simétrico es ampliamente usado hoy en día?", opciones: ["RSA", "AES", "MD5"], correcta: 1, explicacion: "AES (Advanced Encryption Standard) es el cifrado simétrico más usado, con claves de 128, 192 o 256 bits. RSA es asimétrico y MD5 es una función hash (no cifrado)." },
+      { texto: "¿Qué es el phishing?", opciones: ["Un tipo de virus informático", "Un ataque que suplanta identidades para robar información", "Un protocolo de cifrado"], correcta: 1, explicacion: "El phishing es un ataque de ingeniería social que usa correos, SMS o webs falsas que suplantan identidades legítimas para engañar a las víctimas y robar credenciales o datos bancarios." },
+      { texto: "¿Qué tipo de cifrado usa clave pública y clave privada?", opciones: ["Cifrado simétrico", "Cifrado asimétrico", "Cifrado hash"], correcta: 1, explicacion: "El cifrado asimétrico usa un par de claves: la clave pública (para cifrar o verificar) y la clave privada (para descifrar o firmar). RSA es el algoritmo asimétrico más conocido." },
+      { texto: "¿Qué tipo de backup copia solo los cambios desde el último backup completo?", opciones: ["Backup completo", "Backup incremental", "Backup diferencial"], correcta: 1, explicacion: "El backup incremental copia solo los cambios desde el último backup (ya sea completo o incremental anterior). El diferencial copia los cambios desde el último backup COMPLETO." },
+      { texto: "¿Qué hace un cortafuegos (firewall)?", opciones: ["Elimina virus del sistema", "Filtra el tráfico de red según reglas definidas", "Cifra todas las comunicaciones"], correcta: 1, explicacion: "Un firewall filtra el tráfico de red entrante y saliente basándose en reglas configuradas (IP, puerto, protocolo). No elimina virus ni cifra tráfico por sí solo." },
+      { texto: "¿Qué significa DoS en ciberseguridad?", opciones: ["Domain of Security", "Denial of Service", "Data on Server"], correcta: 1, explicacion: "DoS (Denial of Service) es un ataque que satura un servidor con peticiones masivas para dejarlo inaccesible. Cuando proviene de múltiples equipos coordinados se llama DDoS." },
+      { texto: "¿Qué protocolo usa HTTPS para cifrar las comunicaciones?", opciones: ["FTP", "SSH", "TLS/SSL"], correcta: 2, explicacion: "HTTPS cifra la comunicación HTTP usando TLS (Transport Layer Security), sucesor de SSL. El certificado digital permite verificar la identidad del servidor y establecer el canal cifrado." },
+      { texto: "¿Qué es la ingeniería social en ciberseguridad?", opciones: ["Un tipo de malware avanzado", "La manipulación psicológica de personas para obtener información", "Un protocolo de autenticación"], correcta: 1, explicacion: "La ingeniería social manipula psicológicamente a las personas para que revelen información confidencial o realicen acciones perjudiciales. El phishing y el pretexting son ejemplos comunes." }
+    ]
+  },
+  web: {
+    nombre: "Aplicaciones web",
+    preguntas: [
+      { texto: "¿Qué significa HTML?", opciones: ["HyperText Markup Language", "HyperText Management Language", "High Transfer Markup Language"], correcta: 0, explicacion: "HTML (HyperText Markup Language) es el lenguaje de marcado estándar para crear y estructurar páginas web. Define la estructura y el contenido mediante etiquetas." },
+      { texto: "¿Qué etiqueta HTML define el título de la página en la barra del navegador?", opciones: ["<header>", "<h1>", "<title>"], correcta: 2, explicacion: "La etiqueta <title> dentro del <head> define el título que aparece en la pestaña y barra del navegador. <h1> es el encabezado principal visible en el contenido y <header> es una sección semántica." },
+      { texto: "¿Qué propiedad CSS se usa para cambiar el color del texto?", opciones: ["background-color", "color", "font-color"], correcta: 1, explicacion: "La propiedad CSS 'color' define el color del texto. 'background-color' cambia el fondo y 'font-color' no existe en CSS estándar." },
+      { texto: "¿Qué modelo de layout CSS permite alinear elementos en filas y columnas de forma flexible?", opciones: ["Float", "Flexbox", "Position"], correcta: 1, explicacion: "Flexbox (display: flex) es un sistema de layout unidimensional que facilita alinear y distribuir elementos en una fila o columna. CSS Grid es el sistema bidimensional." },
+      { texto: "¿Qué método JavaScript selecciona un elemento HTML por su ID?", opciones: ["querySelector()", "getElementById()", "getElement()"], correcta: 1, explicacion: "getElementById('miId') selecciona directamente el elemento con ese ID. querySelector('#miId') también funciona pero acepta cualquier selector CSS. getElement() no existe en JavaScript." },
+      { texto: "¿Qué servidor web de código abierto es el más usado en Linux?", opciones: ["IIS", "Apache", "Node.js"], correcta: 1, explicacion: "Apache HTTP Server es el servidor web más extendido en Linux, conocido por su modularidad y el fichero .htaccess. IIS es el servidor de Microsoft para Windows y Node.js es un entorno de ejecución, no un servidor web." },
+      { texto: "¿Qué lenguaje se usa para consultar y manipular bases de datos relacionales?", opciones: ["HTML", "CSS", "SQL"], correcta: 2, explicacion: "SQL (Structured Query Language) es el lenguaje estándar para gestionar bases de datos relacionales. Permite realizar operaciones como SELECT, INSERT, UPDATE, DELETE y CREATE TABLE." },
+      { texto: "¿Qué etiqueta HTML se usa para crear un enlace o hipervínculo?", opciones: ["<link>", "<a>", "<href>"], correcta: 1, explicacion: "La etiqueta <a> (anchor) con el atributo href crea hipervínculos. <link> se usa en el <head> para vincular hojas de estilo y <href> no es una etiqueta sino un atributo." },
+      { texto: "¿Qué significa CSS?", opciones: ["Cascading Style Sheets", "Computer Style System", "Content Style Syntax"], correcta: 0, explicacion: "CSS (Cascading Style Sheets) es el lenguaje de hojas de estilo en cascada que controla la presentación visual del HTML: colores, tipografía, layout, animaciones, etc." },
+      { texto: "¿Qué vulnerabilidad ocurre cuando se insertan comandos SQL maliciosos en un formulario?", opciones: ["XSS (Cross-Site Scripting)", "Phishing", "Inyección SQL"], correcta: 2, explicacion: "La inyección SQL ocurre cuando un atacante inserta código SQL malicioso en campos de entrada no saneados, pudiendo leer, modificar o borrar datos de la base de datos. Se previene con sentencias preparadas." }
+    ]
+  },
+  ingles: {
+    nombre: "Ingles profesional",
+    preguntas: [
+      { texto: "¿Cómo se dice 'cortafuegos' en inglés técnico?", opciones: ["Firewall", "Fireguard", "Fireblock"], correcta: 0, explicacion: "'Firewall' es el término técnico correcto en inglés para cortafuegos. Es el término universalmente aceptado en seguridad informática a nivel global." },
+      { texto: "¿Qué significa 'bandwidth' en redes informáticas?", opciones: ["Nombre de dominio", "Ancho de banda", "Contraseña"], correcta: 1, explicacion: "'Bandwidth' (ancho de banda) es la capacidad máxima de transmisión de datos de una conexión de red, generalmente medida en Mbps o Gbps." },
+      { texto: "¿Cuál es el saludo formal correcto para iniciar un email profesional en inglés?", opciones: ["Hey there,", "Dear Sir/Madam,", "Hello friend,"], correcta: 1, explicacion: "'Dear Sir/Madam,' es el saludo formal estándar cuando no se conoce el nombre del destinatario. Si se conoce, se usa 'Dear Mr./Ms. [Apellido],'." },
+      { texto: "¿Cómo se llama correctamente el sistema operativo en inglés?", opciones: ["Operative System", "Operating System", "System Operator"], correcta: 1, explicacion: "La traducción correcta es 'Operating System' (OS). 'Operative System' es un error muy común entre hispanohablantes. 'System Operator' es un operador de sistemas, persona que gestiona sistemas." },
+      { texto: "¿Qué significa 'deploy' en desarrollo de software?", opciones: ["Diseñar la interfaz", "Desplegar / poner en producción", "Depurar el código"], correcta: 1, explicacion: "'Deploy' significa desplegar una aplicación en un entorno (producción, staging...). 'Debug' es depurar el código eliminando errores, y 'design' es diseñar la interfaz." },
+      { texto: "¿Cómo se dice 'placa base' en inglés?", opciones: ["Base plate", "Main card", "Motherboard"], correcta: 2, explicacion: "'Motherboard' es el término correcto para placa base en inglés técnico. También se puede usar 'mainboard' en algunos contextos, pero 'motherboard' es el más extendido." },
+      { texto: "¿Qué expresión se usa para indicar que adjuntas un fichero en un email en inglés?", opciones: ["I am sending you...", "Please find attached...", "Look at this..."], correcta: 1, explicacion: "'Please find attached...' es la expresión formal estándar para indicar que se adjunta un documento. También es válido 'I have attached...' o 'As per your request, I enclose...'." },
+      { texto: "¿Qué significa 'debug' en programación?", opciones: ["Compilar el código", "Depurar / eliminar errores del código", "Ejecutar el programa"], correcta: 1, explicacion: "'Debug' significa depurar el código, es decir, identificar y eliminar errores (bugs). Compilar es 'compile' y ejecutar es 'run' o 'execute'." },
+      { texto: "¿Cómo se dice 'actualización de software' en inglés técnico?", opciones: ["Upgrade", "Update", "Upload"], correcta: 1, explicacion: "'Update' es una actualización menor (parches, correcciones). 'Upgrade' es una mejora mayor de versión o hardware. 'Upload' significa subir un archivo a un servidor." },
+      { texto: "¿Qué conector en inglés se usa para concluir o resumir una presentación?", opciones: ["Moreover", "However", "To sum up"], correcta: 2, explicacion: "'To sum up' se usa para resumir los puntos principales al concluir. 'Moreover' añade información adicional y 'However' introduce contraste. También se usa 'In conclusion' o 'To conclude'." }
+    ]
+  },
+  digitalización: {
+    nombre: "Digitalización aplicada",
+    preguntas: [
+      { texto: "¿Qué significa IaaS en cloud computing?", opciones: ["Internet as a Service", "Infrastructure as a Service", "Integration as a Service"], correcta: 1, explicacion: "IaaS (Infrastructure as a Service) ofrece infraestructura virtualizada: servidores, redes y almacenamiento. El usuario gestiona el SO y aplicaciones. Ejemplos: AWS EC2, Azure VMs." },
+      { texto: "¿Cuál de estos es un proveedor de servicios en la nube?", opciones: ["Oracle Database", "Amazon Web Services (AWS)", "Mozilla Firefox"], correcta: 1, explicacion: "Amazon Web Services (AWS) es el principal proveedor de cloud computing del mundo, junto con Microsoft Azure y Google Cloud Platform (GCP). Oracle Database es un SGBD y Firefox un navegador." },
+      { texto: "¿Qué es la transformación digital en una empresa?", opciones: ["Convertir documentos en papel a PDF", "Integrar tecnología digital en todas las áreas del negocio", "Comprar ordenadores nuevos"], correcta: 1, explicacion: "La transformación digital es la integración profunda de tecnología en todos los procesos y áreas de una empresa, implicando cambios culturales, de modelo de negocio y de procesos, no solo tecnológicos." },
+      { texto: "¿Qué significa IoT?", opciones: ["Internet of Technology", "Internet of Things", "Integration of Tools"], correcta: 1, explicacion: "IoT (Internet of Things / Internet de las Cosas) es la red de objetos físicos con sensores, software y conectividad que les permite recopilar e intercambiar datos con otros dispositivos e internet." },
+      { texto: "¿Qué normativa europea regula la protección de datos personales?", opciones: ["ISO 9001", "RGPD", "LOPD antigua"], correcta: 1, explicacion: "El RGPD (Reglamento General de Protección de Datos) es la normativa europea vigente desde 2018 que regula el tratamiento de datos personales en la UE. Sustituyó a la antigua LOPD española." },
+      { texto: "¿Qué significa SaaS?", opciones: ["Software as a Service", "System as a Service", "Storage as a Service"], correcta: 0, explicacion: "SaaS (Software as a Service) ofrece aplicaciones completas accesibles vía navegador sin instalación. Ejemplos: Gmail, Office 365, Salesforce. El proveedor gestiona toda la infraestructura." },
+      { texto: "¿Cuál es una ventaja principal del cloud computing frente a la infraestructura propia?", opciones: ["Requiere mucha infraestructura física propia", "Escalabilidad y reducción de costes", "Solo funciona sin conexión a internet"], correcta: 1, explicacion: "El cloud computing permite escalar recursos según la demanda y pagar solo por lo que se usa, eliminando la inversión en hardware propio. Requiere conectividad a internet para funcionar." },
+      { texto: "¿Qué es el Big Data?", opciones: ["Un tipo de base de datos pequeña y ligera", "El procesamiento de grandes volúmenes de datos para extraer información", "Un lenguaje de programación para análisis"], correcta: 1, explicacion: "Big Data se refiere a conjuntos de datos tan masivos y complejos que requieren herramientas especiales para procesarlos y extraer valor. Se caracteriza por las 5V: Volumen, Velocidad, Variedad, Veracidad y Valor." },
+      { texto: "¿Qué implica la economía circular aplicada a la informática?", opciones: ["Comprar siempre equipos de última generación", "Reutilizar, reparar y reciclar componentes electrónicos", "Usar solo software de pago"], correcta: 1, explicacion: "La economía circular en informática implica alargar la vida útil de los equipos reparándolos, comprar reacondicionados, reciclar correctamente los RAEE y diseñar productos más duraderos." },
+      { texto: "¿Cuál de los siguientes es un ejemplo de automatización de procesos empresariales?", opciones: ["Escribir emails manualmente", "Un chatbot que responde consultas automáticamente", "Imprimir documentos en papel"], correcta: 1, explicacion: "Un chatbot que responde consultas automáticamente es un claro ejemplo de automatización: realiza una tarea repetitiva (atender preguntas) sin intervención humana continua, ahorrando tiempo y recursos." }
+    ]
+  },
+  empleabilidad: {
+    nombre: "Itinerario para la empleabilidad II",
+    preguntas: [
+      { texto: "¿Cuántos días naturales de vacaciones tiene un trabajador según el Estatuto de los Trabajadores?", opciones: ["22 días laborables", "30 días naturales", "15 días naturales"], correcta: 1, explicacion: "El Estatuto de los Trabajadores establece un mínimo de 30 días naturales de vacaciones al año, que no pueden sustituirse por compensación económica salvo en caso de fin de contrato." },
+      { texto: "¿Qué ley regula las relaciones laborales entre empresa y trabajador en España?", opciones: ["Ley Orgánica de Educación", "Estatuto de los Trabajadores", "Ley de Prevención de Riesgos Laborales"], correcta: 1, explicacion: "El Estatuto de los Trabajadores (Real Decreto Legislativo 2/2015) es la norma básica que regula los derechos y obligaciones de trabajadores y empresarios en España." },
+      { texto: "¿Cuántas horas semanales es la jornada laboral máxima ordinaria en España?", opciones: ["35 horas", "40 horas", "45 horas"], correcta: 1, explicacion: "El Estatuto de los Trabajadores fija en 40 horas semanales la jornada máxima ordinaria, con registro horario obligatorio para todas las empresas desde 2019." },
+      { texto: "¿Qué es un Currículum Vitae (CV)?", opciones: ["Un contrato de trabajo", "Un documento que resume la formación y experiencia profesional", "Una nómina mensual"], correcta: 1, explicacion: "El CV es el documento que presenta de forma organizada la formación académica, experiencia laboral, habilidades e información relevante de un candidato para optar a un puesto de trabajo." },
+      { texto: "¿Qué ley regula la prevención de riesgos laborales en España?", opciones: ["Ley 31/1995", "Ley 40/2003", "Ley 15/1999"], correcta: 0, explicacion: "La Ley 31/1995 de Prevención de Riesgos Laborales obliga a las empresas a garantizar la seguridad y salud de sus trabajadores, realizando evaluaciones de riesgos y proporcionando la formación necesaria." },
+      { texto: "¿Qué forma jurídica es la más sencilla para emprender de forma individual en España?", opciones: ["Sociedad Anónima (SA)", "Trabajador Autónomo", "Cooperativa"], correcta: 1, explicacion: "El Trabajador Autónomo (RETA) es la forma más simple de emprender: sin capital mínimo, trámites sencillos, pero con responsabilidad ilimitada. La SL requiere al menos 3.000€ de capital." },
+      { texto: "¿Qué portal de empleo es ampliamente usado en España para buscar trabajo en TIC?", opciones: ["InfoJobs", "Wallapop", "Idealista"], correcta: 0, explicacion: "InfoJobs es el portal de empleo líder en España y muy utilizado en el sector TIC. Tecnoempleo también es específico para el sector. Wallapop es de segunda mano e Idealista de inmobiliaria." },
+      { texto: "¿Qué es la ergonomía aplicada al puesto de trabajo informático?", opciones: ["El software de gestión de nóminas", "La adaptación del puesto para prevenir lesiones y mejorar el bienestar", "El sistema de fichaje de empleados"], correcta: 1, explicacion: "La ergonomía adapta el entorno y condiciones de trabajo a las características del trabajador para prevenir lesiones (fatiga visual, RSI, problemas posturales) y mejorar su bienestar y productividad." },
+      { texto: "¿Qué documento acompaña al CV para presentarse a una oferta de trabajo?", opciones: ["Nómina del trabajo anterior", "Carta de presentación", "Contrato laboral"], correcta: 1, explicacion: "La carta de presentación complementa el CV explicando la motivación del candidato, por qué encaja en el puesto y aportando valor añadido que no aparece directamente en el currículum." },
+      { texto: "¿Qué significa SMI en el contexto laboral español?", opciones: ["Sistema de Monitorización de Infraestructuras", "Salario Mínimo Interprofesional", "Servicio de Mediación Individual"], correcta: 1, explicacion: "El SMI (Salario Mínimo Interprofesional) es el salario mínimo legal que deben percibir los trabajadores en España, fijado anualmente por el Gobierno mediante Real Decreto." }
+    ]
+  },
+  sostenibilidad: {
+    nombre: "Sostenibilidad aplicada al sistema productivo",
+    preguntas: [
+      { texto: "¿Cuántos Objetivos de Desarrollo Sostenible (ODS) estableció la ONU en la Agenda 2030?", opciones: ["10", "17", "20"], correcta: 1, explicacion: "La Agenda 2030 de la ONU establece 17 ODS (Objetivos de Desarrollo Sostenible) aprobados en 2015 por 193 países, con metas concretas para lograr un desarrollo sostenible global antes de 2030." },
+      { texto: "¿Qué significa RAEE?", opciones: ["Red de Acceso a Equipos Electrónicos", "Residuos de Aparatos Eléctricos y Electrónicos", "Registro de Activos Empresariales Electrónicos"], correcta: 1, explicacion: "RAEE son los Residuos de Aparatos Eléctricos y Electrónicos (móviles, ordenadores, impresoras, etc.). La Directiva europea RAEE obliga a su correcta gestión y reciclaje para evitar contaminación." },
+      { texto: "¿Qué modelo económico busca eliminar residuos reutilizando y reciclando materiales?", opciones: ["Economía lineal", "Economía circular", "Economía de mercado"], correcta: 1, explicacion: "La economía circular diseña productos para que sus materiales permanezcan en uso el mayor tiempo posible (reutilizar, reparar, remanufacturar, reciclar), en contraposición al modelo lineal extraer-producir-desechar." },
+      { texto: "¿Qué norma internacional certifica el sistema de gestión ambiental de una empresa?", opciones: ["ISO 9001", "ISO 14001", "ISO 27001"], correcta: 1, explicacion: "ISO 14001 es la norma internacional que especifica los requisitos para un sistema de gestión ambiental eficaz. ISO 9001 es de calidad e ISO 27001 es de seguridad de la información." },
+      { texto: "¿Qué es la huella de carbono digital?", opciones: ["El consumo eléctrico de un ordenador personal", "Las emisiones de CO2 generadas por el uso de tecnología digital", "El espacio en disco que ocupan los archivos"], correcta: 1, explicacion: "La huella de carbono digital son las emisiones de CO2 equivalente generadas por el uso de tecnología: fabricación de dispositivos, centros de datos, redes y uso de dispositivos por los usuarios." },
+      { texto: "¿Qué principio fundamental guía el concepto de desarrollo sostenible?", opciones: ["Maximizar el beneficio económico a corto plazo", "Satisfacer las necesidades presentes sin comprometer las generaciones futuras", "Reducir toda actividad industrial"], correcta: 1, explicacion: "Esta es la definición del Informe Brundtland (1987): el desarrollo sostenible satisface las necesidades del presente sin comprometer la capacidad de las generaciones futuras de satisfacer las suyas." },
+      { texto: "¿Cuál de estas acciones reduce la huella de carbono digital en una empresa?", opciones: ["Dejar todos los equipos encendidos 24h", "Apagar equipos cuando no se usan y optimizar el código software", "Comprar más dispositivos nuevos cada año"], correcta: 1, explicacion: "Apagar equipos innecesarios y escribir código eficiente reduce el consumo energético. Elegir proveedores cloud con energías renovables y alargar la vida útil de los dispositivos también ayuda." },
+      { texto: "¿Qué normativa europea regula la gestión de los residuos electrónicos?", opciones: ["RGPD", "Directiva RAEE", "ISO 14001"], correcta: 1, explicacion: "La Directiva RAEE (2012/19/UE) establece las obligaciones de recogida, tratamiento y reciclaje de residuos electrónicos en la UE. El RGPD es de protección de datos e ISO 14001 es una norma, no directiva." },
+      { texto: "¿Qué es un equipo informático reacondicionado?", opciones: ["Un equipo nuevo de última generación", "Un equipo usado reparado y puesto en condiciones para volver a usarse", "Un equipo averiado sin reparar"], correcta: 1, explicacion: "Un equipo reacondicionado es un dispositivo usado que ha sido revisado, reparado si es necesario, limpiado y verificado para garantizar su correcto funcionamiento antes de volver al mercado." },
+      { texto: "¿Qué impacto ambiental principal tiene la fabricación de dispositivos electrónicos?", opciones: ["Ningún impacto relevante", "Genera emisiones de CO2 y consume recursos naturales escasos", "Solo afecta al consumo eléctrico durante el uso"], correcta: 1, explicacion: "La fabricación de dispositivos electrónicos es la fase de mayor impacto: extrae minerales escasos (coltán, litio), consume mucha energía y genera emisiones de CO2, más que el uso posterior del dispositivo." }
+    ]
+  },
+  robótica: {
+    nombre: "Robótica",
+    preguntas: [
+      { texto: "¿Qué plataforma de hardware libre con microcontrolador es muy popular en proyectos educativos de robótica?", opciones: ["Raspberry Pi", "Arduino", "FPGA"], correcta: 1, explicacion: "Arduino es la plataforma de hardware libre más usada en educación por su sencillez, bajo coste y gran comunidad. Raspberry Pi es un miniordenador completo y FPGA es programable a nivel de hardware." },
+      { texto: "¿En qué lenguaje de programación se programa principalmente Arduino?", opciones: ["Python", "Java", "C/C++"], correcta: 2, explicacion: "Arduino se programa con un lenguaje basado en C/C++ a través de su IDE gratuito. Python es el lenguaje de Raspberry Pi y MicroPython para microcontroladores como ESP32." },
+      { texto: "¿Qué es un sensor en robótica?", opciones: ["Un componente que ejecuta movimientos físicos", "Un componente que recibe información del entorno", "Un componente que almacena energía"], correcta: 1, explicacion: "Los sensores son los 'órganos sensoriales' del robot: captan información del entorno (temperatura, distancia, luz, sonido). Los actuadores son los que ejecutan movimientos físicos." },
+      { texto: "¿Qué es un actuador en robótica?", opciones: ["Un componente que mide variables del entorno", "Un componente que ejecuta una acción física (motor, servo, LED)", "Un microprocesador de control"], correcta: 1, explicacion: "Los actuadores convierten señales eléctricas en acciones físicas: motores (movimiento rotativo), servos (posición controlada), LEDs (luz) o altavoces (sonido). Son la 'salida' del robot." },
+      { texto: "¿Qué tipo de robot se usa habitualmente en cadenas de montaje industriales?", opciones: ["Robot de servicio doméstico", "Robot educativo", "Robot industrial de brazo articulado"], correcta: 2, explicacion: "Los robots industriales de brazo articulado (como los de KUKA o Fanuc) se usan en automoción y manufactura para tareas de soldadura, pintura o ensamblaje con alta precisión y velocidad." },
+      { texto: "¿Qué entorno de programación visual por bloques es compatible con Arduino y robots educativos?", opciones: ["Visual Studio Code", "mBlock / Scratch", "Eclipse"], correcta: 1, explicacion: "mBlock (basado en Scratch) permite programar Arduino y robots educativos mediante bloques visuales, ideal para iniciarse sin escribir código directamente. VS Code y Eclipse son IDEs de texto." },
+      { texto: "¿Qué detecta un sensor de ultrasonidos en un proyecto de Arduino?", opciones: ["La temperatura del entorno", "La distancia a un objeto", "La intensidad de la luz"], correcta: 1, explicacion: "El sensor HC-SR04 emite pulsos de ultrasonidos y mide el tiempo que tarda en rebotar en un objeto, calculando así la distancia (de 2cm a 4m). Para temperatura se usa el DHT11 y para luz una LDR." },
+      { texto: "¿Qué significa que un robot es autónomo?", opciones: ["Que necesita control manual constante", "Que puede realizar tareas sin intervención humana continua", "Que solo funciona conectado a internet"], correcta: 1, explicacion: "Un robot autónomo toma sus propias decisiones basándose en los datos de sus sensores sin necesitar control humano continuo. Los robots teleoperados, en cambio, son controlados en tiempo real por un humano." },
+      { texto: "¿Qué es la robótica de servicio?", opciones: ["Robots usados exclusivamente en fabricación industrial", "Robots diseñados para asistir a personas en tareas cotidianas", "Robots exclusivamente militares"], correcta: 1, explicacion: "Los robots de servicio asisten a personas en tareas domésticas o profesionales: aspiradoras autónomas (Roomba), asistentes (Pepper), robots de reparto, o robots quirúrgicos como el Da Vinci." },
+      { texto: "¿Qué elemento de Arduino permite leer señales analógicas del entorno (temperatura, luz, etc.)?", opciones: ["Los pines de alimentación", "Los pines analógicos (A0-A5)", "El puerto USB"], correcta: 1, explicacion: "Los pines analógicos A0-A5 del Arduino Uno leen valores continuos de 0 a 1023 (10 bits) mediante el convertidor ADC integrado, permitiendo leer sensores como LDR, potenciómetros o termistores." }
+    ]
+  }
+};
+
+// =============================================
+// RENDERIZAR MODULOS
+// =============================================
+
+const grid = document.getElementById("módulos-grid");
+Object.entries(RESUMENES).forEach(([key, mod]) => {
+  const numTemas = Object.keys(mod.temas).length;
+  const card = document.createElement("div");
+  card.className = "módulo-card";
+  card.style.borderTopColor = COLORES[key];
+  card.innerHTML = `
+    <div class="módulo-icon" style="background:${COLORES[key]}">${mod.ícono}</div>
+    <div class="módulo-name">${mod.nombre}</div>
+    <div class="módulo-temas">${numTemas} temas disponibles</div>
+    <button class="módulo-link">
+      Ver contenido
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"/></svg>
+    </button>
+  `;
+  card.querySelector("button").addEventListener("click", () => {
+    document.getElementById("resumen-asignatura").value = key;
+    dispatchChange("resumen-asignatura");
+    document.getElementById("resumenes").scrollIntoView({ behavior: "smooth" });
+  });
+  grid.appendChild(card);
+});
+
+// =============================================
+// RELLENAR SELECTS
+// =============================================
+
+const selResAsg = document.getElementById("resumen-asignatura");
+const selResTema = document.getElementById("resumen-tema");
+const selTestAsg = document.getElementById("test-asignatura");
+
+Object.entries(RESUMENES).forEach(([key, mod]) => {
+  selResAsg.appendChild(new Option(mod.nombre, key));
+});
+Object.entries(TESTS).forEach(([key, t]) => {
+  selTestAsg.appendChild(new Option(t.nombre, key));
+});
+
+// =============================================
+// LOGICA RESUMENES
+// =============================================
+
+function dispatchChange(id) {
+  document.getElementById(id).dispatchEvent(new Event("change"));
+}
+
+selResAsg.addEventListener("change", () => {
+  const key = selResAsg.value;
+  const temaGroup = document.getElementById("resumen-tema-group");
+  const placeholder = document.getElementById("resumen-placeholder");
+  const content = document.getElementById("resumen-content");
+
+  selResTema.innerHTML = '<option value="">Elige un tema</option>';
+  content.classList.add("hidden");
+  placeholder.classList.add("hidden");
+
+  if (!key) { temaGroup.classList.add("hidden"); return; }
+
+  temaGroup.classList.remove("hidden");
+  Object.keys(RESUMENES[key].temas).forEach(tema => {
+    selResTema.appendChild(new Option(tema, tema));
+  });
+  placeholder.innerHTML = `Selecciona un tema de <strong>${RESUMENES[key].nombre}</strong> para ver el resumen.`;
+  placeholder.classList.remove("hidden");
+});
+
+selResTema.addEventListener("change", () => {
+  const key = selResAsg.value;
+  const tema = selResTema.value;
+  const placeholder = document.getElementById("resumen-placeholder");
+  const content = document.getElementById("resumen-content");
+
+  if (!tema) { placeholder.classList.remove("hidden"); content.classList.add("hidden"); return; }
+
+  placeholder.classList.add("hidden");
+  content.classList.remove("hidden");
+
+  const color = COLORES[key];
+  const datos = RESUMENES[key].temas[tema];
+  const temas = Object.keys(RESUMENES[key].temas);
+  const numTema = temas.indexOf(tema) + 1;
+
+  const puntosHTML = datos.puntos.map(p => `<li>${p}</li>`).join("");
+  const conceptosHTML = datos.conceptos.map(c =>
+    `<div class="slide-concepto" style="border-left-color:${color}">
+      <div class="slide-concepto-term">${c.t}</div>
+      <div class="slide-concepto-def">${c.d}</div>
+    </div>`
+  ).join("");
+
+  content.innerHTML = `
+    <div class="slide">
+      <div class="slide-header" style="background: linear-gradient(135deg, ${color}ee, ${color}bb)">
+        <div class="slide-header-icon">${RESUMENES[key].ícono}</div>
+        <div class="slide-header-info">
+          <div class="slide-asignatura">${RESUMENES[key].nombre}</div>
+          <div class="slide-título">${tema}</div>
+        </div>
+      </div>
+      <div class="slide-body">
+        <div>
+          <div class="slide-section-title" style="color:${color}">Puntos clave</div>
+          <ul class="slide-puntos" style="--c:${color}">${puntosHTML}</ul>
+        </div>
+        <div>
+          <div class="slide-section-title" style="color:${color}">Conceptos importantes</div>
+          <div class="slide-conceptos">${conceptosHTML}</div>
+        </div>
+      </div>
+      <div class="slide-footer">
+        <span class="slide-footer-tag">SMR Study · ${RESUMENES[key].nombre}</span>
+        <span class="slide-footer-num">Tema ${numTema} / ${temas.length}</span>
+      </div>
+    </div>
+  `;
+});
+
+
+// =============================================
+// GENERADOR DE VARIACIONES DE PREGUNTAS
+// =============================================
+
+function shuffleArray(arr) {
+  const a = [...arr];
+  for (let i = a.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [a[i], a[j]] = [a[j], a[i]];
+  }
+  return a;
+}
+
+function variarPregunta(p) {
+  // Mezclar opciones y recalcular el índice correcto
+  const opcionCorrecta = p.opciones[p.correcta];
+  const opcionesShuffled = shuffleArray(p.opciones);
+  const nuevaCorrecta = opcionesShuffled.indexOf(opcionCorrecta);
+
+  // Variaciones del enunciado
+  const variaciones = [
+    (t) => t, // original
+    (t) => t.replace("¿Qué ", "¿Cuál es el elemento que "),
+    (t) => t.replace("¿Cuál es ", "¿Qué opción corresponde a "),
+    (t) => {
+      // Convertir en verdadero/falso con la opción correcta
+      const correcta = p.opciones[p.correcta];
+      return ;
+    },
+    (t) => t.replace("¿Qué", "Indica cuál").replace("?", " es correcto:"),
+    (t) => "Selecciona la opción correcta: " + t.replace("¿","").replace("?",""),
+  ];
+
+  // Elegir variación aleatoria
+  const varFn = variaciones[Math.floor(Math.random() * (variaciones.length - 1))]; // evitar V/F siempre
+  const nuevoTexto = varFn(p.texto);
+
+  return {
+    texto: nuevoTexto,
+    opciones: opcionesShuffled,
+    correcta: nuevaCorrecta,
+    explicacion: p.explicacion
+  };
+}
+
+function generarVariaciones(key) {
+  const originales = TESTS[key].preguntas;
+  // Mezclar orden de preguntas y variar cada una
+  return shuffleArray(originales).map(p => variarPregunta(p));
+}
+
+// =============================================
+// LOGICA TESTS — con corrección por pregunta
+// =============================================
+
+let respuestas = {};
+let testCorregido = false;
+
+function renderTest(key, preguntas) {
+  const container = document.getElementById("test-preguntas");
+  const resultado = document.getElementById("test-resultado");
+  respuestas = {};
+  testCorregido = false;
+  resultado.classList.add("hidden");
+  container.innerHTML = "";
+
+  if (!key) { container.classList.add("hidden"); return; }
+  container.classList.remove("hidden");
+
+  // Botón de nuevas preguntas
+  const shuffleBtn = document.createElement("button");
+  shuffleBtn.className = "btn-shuffle";
+  shuffleBtn.innerHTML = `<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="16 3 21 3 21 8"/><line x1="4" y1="20" x2="21" y2="3"/><polyline points="21 16 21 21 16 21"/><line x1="15" y1="15" x2="21" y2="21"/></svg> Nuevas preguntas`;
+  shuffleBtn.addEventListener("click", () => renderTest(key, generarVariaciones(key)));
+  container.appendChild(shuffleBtn);
+
+  preguntas.forEach((p, i) => {
+    const card = document.createElement("div");
+    card.className = "question-card";
+    card.dataset.qi = i;
+    card.innerHTML = `
+      <div class="question-number" id="qnum-${i}">${i + 1}</div>
+      <div class="question-body">
+        <p class="question-text">${p.texto}</p>
+        <div class="question-options" id="qopts-${i}">
+          ${p.opciones.map((op, j) => `
+            <label class="option-label" data-qi="${i}" data-oi="${j}">
+              <input type="radio" name="p${i}" value="${j}">
+              <span class="option-radio"></span>
+              <span class="option-text">${op}</span>
+              <span class="option-icon"></span>
+            </label>
+          `).join("")}
+        </div>
+        <div class="explicacion-box hidden" id="expl-${i}">
+          <span class="ex-icon">💡</span>
+          <div><strong>Respuesta correcta: ${p.opciones[p.correcta]}</strong>${p.explicacion}</div>
+        </div>
+      </div>
+    `;
+    container.appendChild(card);
+  });
+
+  // Eventos de selección
+  container.querySelectorAll(".option-label").forEach(label => {
+    label.addEventListener("click", () => {
+      if (testCorregido) return;
+      const qi = +label.dataset.qi;
+      const oi = +label.dataset.oi;
+      respuestas[qi] = oi;
+      container.querySelectorAll(`.option-label[data-qi="${qi}"]`).forEach(l => l.classList.remove("selected"));
+      label.classList.add("selected");
+    });
+  });
+
+  // Botón corregir
+  const btn = document.createElement("button");
+  btn.className = "btn-primary btn-full";
+  btn.innerHTML = `
+    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2"/><rect x="8" y="2" width="8" height="4" rx="1" ry="1"/></svg>
+    Corregir test
+  `;
+  btn.addEventListener("click", () => {
+    if (testCorregido) return;
+    testCorregido = true;
+
+    const preguntas = TESTS[key].preguntas;
+    let aciertos = 0;
+
+    preguntas.forEach((p, i) => {
+      const respuestaUsuario = respuestas[i];
+      const esCorrecta = respuestaUsuario === p.correcta;
+      if (esCorrecta) aciertos++;
+
+      const card = container.querySelector(`.question-card[data-qi="${i}"]`);
+      const numEl = document.getElementById(`qnum-${i}`);
+      const explEl = document.getElementById(`expl-${i}`);
+
+      // Colorear el número de pregunta
+      numEl.classList.add(esCorrecta ? "num-right" : "num-wrong");
+      card.classList.add(esCorrecta ? "corrected-right" : "corrected-wrong");
+
+      // Colorear cada opción
+      const labels = container.querySelectorAll(`.option-label[data-qi="${i}"]`);
+      labels.forEach(label => {
+        const oi = +label.dataset.oi;
+        label.classList.remove("selected");
+
+        if (oi === p.correcta) {
+          // Siempre marcar la correcta en verde
+          label.classList.add("correcto");
+          label.querySelector(".option-icon").textContent = "✓";
+        } else if (oi === respuestaUsuario && oi !== p.correcta) {
+          // La que eligió el usuario si era incorrecta, en rojo
+          label.classList.add("incorrecto");
+          label.querySelector(".option-icon").textContent = "✗";
+        } else {
+          // El resto, bloqueadas y atenuadas
+          label.classList.add("bloqueada");
+        }
+      });
+
+      // Mostrar explicación siempre al corregir
+      explEl.classList.remove("hidden");
+    });
+
+    // Resultado global con color según nota
+    const total = preguntas.length;
+    const pct = aciertos / total;
+    const resultadoEl = document.getElementById("test-resultado");
+    resultadoEl.className = "test-result " + (pct >= 0.7 ? "result-good" : pct >= 0.5 ? "result-mid" : "result-bad");
+
+    const iconSVG = pct >= 0.7
+      ? `<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>`
+      : pct >= 0.5
+      ? `<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>`
+      : `<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="15" y1="9" x2="9" y2="15"/><line x1="9" y1="9" x2="15" y2="15"/></svg>`;
+
+    const msg = pct >= 0.7 ? "¡Buen resultado!" : pct >= 0.5 ? "Puedes mejorar." : "Repasa los temas fallados.";
+    resultadoEl.innerHTML = `${iconSVG}<p>Has acertado <strong>${aciertos} de ${total}</strong> preguntas. ${msg}</p>`;
+    resultadoEl.classList.remove("hidden");
+    resultadoEl.scrollIntoView({ behavior: "smooth", block: "nearest" });
+
+    btn.disabled = true;
+    btn.style.opacity = "0.5";
+    btn.style.cursor = "default";
+  });
+
+  container.appendChild(btn);
+}
+
+selTestAsg.addEventListener("change", () => {
+  const key = selTestAsg.value;
+  if (!key) {
+    document.getElementById("test-preguntas").classList.add("hidden");
+    document.getElementById("test-resultado").classList.add("hidden");
+    return;
+  }
+  renderTest(key, generarVariaciones(key));
+});
+
+// =============================================
+// NAVBAR ACTIVO
+// =============================================
+
+const navLinks = document.querySelectorAll(".navbar-link");
+
+const observer = new IntersectionObserver(entries => {
+  entries.forEach(e => {
+    if (e.isIntersecting) {
+      navLinks.forEach(l => l.classList.remove("active"));
+      const link = document.querySelector(`.navbar-link[data-section="${e.target.id}"]`);
+      if (link) link.classList.add("active");
+    }
+  });
+}, { threshold: 0.3 });
+
+document.querySelectorAll("section[id]").forEach(s => observer.observe(s));
+
+// =============================================
+// HAMBURGER MENU
+// =============================================
+
+const hamburger = document.getElementById("hamburger");
+const mobileMenu = document.getElementById("mobile-menu");
+
+hamburger.addEventListener("click", () => {
+  hamburger.classList.toggle("open");
+  mobileMenu.classList.toggle("open");
+});
+
+// Cerrar menú móvil al hacer clic en un enlace
+mobileMenu.querySelectorAll(".navbar-link").forEach(link => {
+  link.addEventListener("click", () => {
+    hamburger.classList.remove("open");
+    mobileMenu.classList.remove("open");
+  });
+});
+
+// =============================================
+// ESTADÍSTICAS DINÁMICAS DEL HERO
+// =============================================
+
+const numAsignaturas = Object.keys(RESUMENES).length;
+const numTemas = Object.values(RESUMENES).reduce((s, m) => s + Object.keys(m.temas).length, 0);
+const numPreguntas = Object.values(TESTS).reduce((s, t) => s + t.preguntas.length, 0);
+
+document.getElementById("stat-asignaturas").textContent = numAsignaturas;
+document.getElementById("stat-temas").textContent = numTemas + "+";
+document.getElementById("stat-preguntas").textContent = numPreguntas + "+";
+
+// =============================================
+// ORG MENU — navegar a subsección con fade
+// =============================================
+
+function scrollToOrg() {
+  document.getElementById("organización").scrollIntoView({ behavior: "smooth" });
+}
+
+document.querySelectorAll(".org-menu-btn").forEach(btn => {
+  btn.addEventListener("click", () => {
+    const tool = btn.dataset.tool;
+    const section = document.getElementById(tool);
+    section.classList.remove("fade-in");
+    void section.offsetWidth; // reflow para reiniciar animación
+    section.classList.add("fade-in");
+    section.scrollIntoView({ behavior: "smooth" });
+  });
+});
+
+// =============================================
+// HELPERS COMUNES
+// =============================================
+
+const ASIGNATURAS = Object.entries(RESUMENES).map(([key, m]) => ({ key, nombre: m.nombre, color: COLORES[key] }));
+const DIAS_ORDER = ["Lunes","Martes","Miércoles","Jueves","Viernes","Sábado","Domingo"];
+
+// Rellenar selects de asignaturas en las herramientas
+["plan-asignatura", "obj-asignatura", "cal-asignatura"].forEach(id => {
+  const sel = document.getElementById(id);
+  if (!sel) return;
+  ASIGNATURAS.forEach(a => {
+    const opt = document.createElement("option");
+    opt.value = a.key;
+    opt.textContent = a.nombre;
+    sel.appendChild(opt);
+  });
+});
+
+function getColor(key) { return COLORES[key] || "#6366f1"; }
+function getNombre(key) {
+  if (key === "General") return "General";
+  return RESUMENES[key] ? RESUMENES[key].nombre : key;
+}
+
+function formatFecha(str) {
+  if (!str) return "";
+  const [y, m, d] = str.split("-");
+  const meses = ["ene","feb","mar","abr","may","jun","jul","ago","sep","oct","nov","dic"];
+  return `${+d} ${meses[+m-1]} ${y}`;
+}
+
+function diasRestantes(str) {
+  if (!str) return null;
+  const hoy = new Date(); hoy.setHours(0,0,0,0);
+  const fecha = new Date(str + "T00:00:00");
+  return Math.round((fecha - hoy) / 86400000);
+}
+
+// =============================================
+// PLANIFICADOR
+// =============================================
+
+let planSesiones = [];
+
+function savePlan() { if(window.firebaseSave) window.firebaseSave("smr_plan", planSesiones); }
+
+function renderPlan() {
+  const tbody = document.getElementById("plan-tbody");
+  const empty = document.getElementById("plan-empty");
+  const stats = document.getElementById("plan-stats");
+  tbody.innerHTML = "";
+
+  const sorted = [...planSesiones].sort((a,b) => DIAS_ORDER.indexOf(a.dia) - DIAS_ORDER.indexOf(b.dia));
+
+  if (sorted.length === 0) {
+    empty.classList.remove("hidden");
+    stats.innerHTML = "";
+    return;
+  }
+  empty.classList.add("hidden");
+
+  const totalHoras = planSesiones.reduce((s, x) => s + +x.horas, 0);
+  const diasUnicos = new Set(planSesiones.map(x => x.dia)).size;
+  stats.innerHTML = `
+    <div class="plan-stat-chip"><span class="plan-stat-num">${planSesiones.length}</span><span class="plan-stat-lbl">Sesiones</span></div>
+    <div class="plan-stat-chip"><span class="plan-stat-num">${totalHoras % 1 === 0 ? totalHoras : totalHoras.toFixed(1)}h</span><span class="plan-stat-lbl">Total</span></div>
+    <div class="plan-stat-chip"><span class="plan-stat-num">${diasUnicos}</span><span class="plan-stat-lbl">Días</span></div>
+  `;
+
+  sorted.forEach((s, idx) => {
+    const color = getColor(s.asignatura);
+    const horasLabel = +s.horas === 0.5 ? "30 min" : `${s.horas}h`;
+    const tr = document.createElement("tr");
+    tr.innerHTML = `
+      <td><strong>${s.dia}</strong></td>
+      <td><span class="plan-badge" style="background:${color}">${getNombre(s.asignatura)}</span></td>
+      <td>${horasLabel}</td>
+      <td style="color:#64748b;font-size:0.85rem">${s.nota || "—"}</td>
+      <td><button class="btn-icon" data-idx="${planSesiones.indexOf(s)}" title="Eliminar">✕</button></td>
+    `;
+    tbody.appendChild(tr);
+  });
+
+  tbody.querySelectorAll(".btn-icon").forEach(btn => {
+    btn.addEventListener("click", () => {
+      planSesiones.splice(+btn.dataset.idx, 1);
+      savePlan(); renderPlan();
+    });
+  });
+}
+
+document.getElementById("plan-add-btn").addEventListener("click", () => {
+  const dia = document.getElementById("plan-dia").value;
+  const asignatura = document.getElementById("plan-asignatura").value;
+  const horas = document.getElementById("plan-horas").value;
+  const nota = document.getElementById("plan-nota").value.trim();
+  if (!asignatura) { alert("Elige una asignatura."); return; }
+  planSesiones.push({ dia, asignatura, horas, nota });
+  savePlan(); renderPlan();
+  document.getElementById("plan-nota").value = "";
+});
+
+// renderPlan se llama desde smr-ready
+
+// =============================================
+// OBJETIVOS
+// =============================================
+
+let objetivos = [];
+
+function saveObj() { if(window.firebaseSave) window.firebaseSave("smr_obj", objetivos); }
+
+function renderObj() {
+  const lista = document.getElementById("obj-lista");
+  const empty = document.getElementById("obj-empty");
+  const stats = document.getElementById("obj-stats");
+  lista.innerHTML = "";
+
+  if (objetivos.length === 0) {
+    empty.classList.remove("hidden");
+    stats.innerHTML = "";
+    return;
+  }
+  empty.classList.add("hidden");
+
+  const completados = objetivos.filter(o => o.done).length;
+  stats.innerHTML = `
+    <div class="plan-stat-chip"><span class="plan-stat-num">${completados}/${objetivos.length}</span><span class="plan-stat-lbl">Completados</span></div>
+  `;
+
+  objetivos.forEach((o, i) => {
+    const dias = diasRestantes(o.fecha);
+    let fechaLabel = "";
+    let fechaClass = "obj-fecha-tag";
+    if (o.fecha) {
+      if (dias < 0) { fechaLabel = `Venció hace ${Math.abs(dias)}d`; fechaClass += " vencido"; }
+      else if (dias === 0) { fechaLabel = "¡Hoy!"; fechaClass += " vencido"; }
+      else if (dias <= 7) { fechaLabel = `En ${dias} día${dias===1?"":"s"}`; fechaClass += " proximo"; }
+      else fechaLabel = formatFecha(o.fecha);
+    }
+    const color = getColor(o.asignatura);
+    const div = document.createElement("div");
+    div.className = "obj-item" + (o.done ? " completado" : "");
+    div.innerHTML = `
+      <div class="obj-check ${o.done ? "done" : ""}" data-i="${i}">
+        ${o.done ? `<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><polyline points="20 6 9 17 4 12"/></svg>` : ""}
+      </div>
+      <div class="obj-body">
+        <div class="obj-texto">${o.texto}</div>
+        <div class="obj-meta">
+          <span class="obj-tag" style="background:${color}22;color:${color}">${getNombre(o.asignatura)}</span>
+          ${fechaLabel ? `<span class="${fechaClass}">📅 ${fechaLabel}</span>` : ""}
+        </div>
+      </div>
+      <button class="btn-icon" data-del="${i}" title="Eliminar">✕</button>
+    `;
+    lista.appendChild(div);
+  });
+
+  lista.querySelectorAll(".obj-check").forEach(el => {
+    el.addEventListener("click", () => {
+      const i = +el.dataset.i;
+      objetivos[i].done = !objetivos[i].done;
+      saveObj(); renderObj();
+    });
+  });
+  lista.querySelectorAll("[data-del]").forEach(btn => {
+    btn.addEventListener("click", () => {
+      objetivos.splice(+btn.dataset.del, 1);
+      saveObj(); renderObj();
+    });
+  });
+}
+
+document.getElementById("obj-add-btn").addEventListener("click", () => {
+  const texto = document.getElementById("obj-texto").value.trim();
+  const asignatura = document.getElementById("obj-asignatura").value;
+  const fecha = document.getElementById("obj-fecha").value;
+  if (!texto) { alert("Escribe un objetivo."); return; }
+  objetivos.push({ texto, asignatura, fecha, done: false });
+  saveObj(); renderObj();
+  document.getElementById("obj-texto").value = "";
+  document.getElementById("obj-fecha").value = "";
+});
+
+// renderObj se llama desde smr-ready
+
+// =============================================
+// CALENDARIO
+// =============================================
+
+let eventos = [];
+
+function saveCal() { if(window.firebaseSave) window.firebaseSave("smr_cal", eventos); }
+
+function renderCal() {
+  const lista = document.getElementById("cal-lista");
+  const empty = document.getElementById("cal-empty");
+  lista.innerHTML = "";
+
+  if (eventos.length === 0) {
+    empty.classList.remove("hidden");
+    return;
+  }
+  empty.classList.add("hidden");
+
+  const sorted = [...eventos].map((e,i) => ({...e, _i: i})).sort((a,b) => a.fecha.localeCompare(b.fecha));
+  const meses = ["ene","feb","mar","abr","may","jun","jul","ago","sep","oct","nov","dic"];
+
+  sorted.forEach(ev => {
+    const dias = diasRestantes(ev.fecha);
+    const pasado = dias !== null && dias < 0;
+    const urgente = dias !== null && dias >= 0 && dias <= 3;
+    const [y, m, d] = ev.fecha.split("-");
+    let diasLabel = "";
+    let diasClass = "cal-dias-tag";
+    if (dias === null) diasLabel = "";
+    else if (dias < 0) { diasLabel = `Hace ${Math.abs(dias)}d`; }
+    else if (dias === 0) { diasLabel = "¡Hoy!"; diasClass += " urgente"; }
+    else if (dias <= 3) { diasLabel = `En ${dias}d`; diasClass += " urgente"; }
+    else if (dias <= 14) { diasLabel = `En ${dias} días`; diasClass += " proximo"; }
+    else diasLabel = `En ${dias} días`;
+
+    const color = getColor(ev.asignatura);
+    const div = document.createElement("div");
+    div.className = "cal-item" + (pasado ? " pasado" : "");
+    div.innerHTML = `
+      <div class="cal-date-box ${urgente ? "urgente" : ""}">
+        <span class="cal-date-day">${+d}</span>
+        <span class="cal-date-month">${meses[+m-1]}</span>
+      </div>
+      <div class="cal-body">
+        <div class="cal-titulo">${ev.titulo}</div>
+        <div class="cal-meta">
+          <span class="cal-tipo-badge ${ev.tipo}">${ev.tipo === "examen" ? "📝 Examen" : ev.tipo === "entrega" ? "📤 Entrega" : "📌 Evento"}</span>
+          <span class="obj-tag" style="background:${color}22;color:${color}">${getNombre(ev.asignatura)}</span>
+          ${diasLabel ? `<span class="${diasClass}">${diasLabel}</span>` : ""}
+        </div>
+      </div>
+      <button class="btn-icon" data-del="${ev._i}" title="Eliminar">✕</button>
+    `;
+    lista.appendChild(div);
+  });
+
+  lista.querySelectorAll("[data-del]").forEach(btn => {
+    btn.addEventListener("click", () => {
+      eventos.splice(+btn.dataset.del, 1);
+      saveCal(); renderCal();
+    });
+  });
+}
+
+document.getElementById("cal-add-btn").addEventListener("click", () => {
+  const titulo = document.getElementById("cal-titulo").value.trim();
+  const asignatura = document.getElementById("cal-asignatura").value;
+  const fecha = document.getElementById("cal-fecha").value;
+  const tipo = document.getElementById("cal-tipo").value;
+  if (!titulo) { alert("Escribe un título."); return; }
+  if (!fecha) { alert("Elige una fecha."); return; }
+  eventos.push({ titulo, asignatura, fecha, tipo });
+  saveCal(); renderCal();
+  document.getElementById("cal-titulo").value = "";
+  document.getElementById("cal-fecha").value = "";
+});
+
+// renderCal se llama desde smr-ready
+// =============================================
+// INICIALIZAR CUANDO FIREBASE TIENE LOS DATOS
+// =============================================
+window.addEventListener("smr-ready", function() {
+  planSesiones = window._smrPlan || [];
+  objetivos    = window._smrObj  || [];
+  eventos      = window._smrCal  || [];
+  renderPlan();
+  renderObj();
+  renderCal();
+  initBanner();
+});
+
+// =============================================
+// BANNER RESUMEN DIARIO
+// =============================================
+
+function initBanner() {
+  const banner   = document.getElementById("daily-banner");
+  const chips    = document.getElementById("banner-chips");
+  const closeBtn = document.getElementById("banner-close");
+
+  // No mostrar si el usuario lo cerró hoy
+  const hoy = new Date().toDateString();
+  if (localStorage.getItem("smr_banner_closed") === hoy) return;
+
+  const DIAS = ["Domingo","Lunes","Martes","Miércoles","Jueves","Viernes","Sábado"];
+  const diaHoy = DIAS[new Date().getDay()];
+
+  const sesiones  = window._smrPlan || [];
+  const objetivos = window._smrObj  || [];
+  const eventos   = window._smrCal  || [];
+
+  // Sesiones de hoy
+  const sesionesHoy = sesiones.filter(s => s.dia === diaHoy);
+  const horasHoy    = sesionesHoy.reduce((s, x) => s + +x.horas, 0);
+
+  // Objetivos pendientes
+  const objPendientes = objetivos.filter(o => !o.done).length;
+
+  // Eventos próximos (7 días)
+  const hoyDate = new Date(); hoyDate.setHours(0,0,0,0);
+  const en7     = new Date(hoyDate); en7.setDate(en7.getDate() + 7);
+  const eventosProx = eventos.filter(ev => {
+    if (!ev.fecha) return false;
+    const f = new Date(ev.fecha + "T00:00:00");
+    return f >= hoyDate && f <= en7;
+  });
+
+  // Eventos urgentes (hoy o mañana)
+  const eventosUrgentes = eventosProx.filter(ev => {
+    const f = new Date(ev.fecha + "T00:00:00");
+    const diff = Math.round((f - hoyDate) / 86400000);
+    return diff <= 1;
+  });
+
+  // Construir chips
+  const chipsData = [];
+
+  if (sesionesHoy.length > 0) {
+    chipsData.push({ tipo: "ok", texto: `📚 ${sesionesHoy.length} sesión${sesionesHoy.length > 1 ? "es" : ""} hoy · ${horasHoy % 1 === 0 ? horasHoy : horasHoy.toFixed(1)}h` });
+  } else {
+    chipsData.push({ tipo: "neutral", texto: `📚 Sin sesiones para hoy` });
+  }
+
+  if (eventosUrgentes.length > 0) {
+    chipsData.push({ tipo: "danger", texto: `⚠️ ${eventosUrgentes.length} evento${eventosUrgentes.length > 1 ? "s" : ""} urgente${eventosUrgentes.length > 1 ? "s" : ""}` });
+  } else if (eventosProx.length > 0) {
+    chipsData.push({ tipo: "warning", texto: `📅 ${eventosProx.length} evento${eventosProx.length > 1 ? "s" : ""} esta semana` });
+  } else {
+    chipsData.push({ tipo: "neutral", texto: `📅 Sin eventos próximos` });
+  }
+
+  if (objPendientes > 0) {
+    chipsData.push({ tipo: "warning", texto: `🎯 ${objPendientes} objetivo${objPendientes > 1 ? "s" : ""} pendiente${objPendientes > 1 ? "s" : ""}` });
+  } else if (objetivos.length > 0) {
+    chipsData.push({ tipo: "ok", texto: `🎯 Todos los objetivos completados` });
+  }
+
+  // Si no hay nada guardado todavía, no mostrar el banner
+  if (sesiones.length === 0 && objetivos.length === 0 && eventos.length === 0) return;
+
+  chips.innerHTML = chipsData.map(c =>
+    `<span class="daily-chip ${c.tipo}">${c.texto}</span>`
+  ).join("");
+
+  const toggleBtn = document.getElementById("banner-toggle-btn");
+
+  function showBanner() {
+    banner.classList.add("visible");
+    toggleBtn.classList.add("hidden-btn");
+  }
+
+  function hideBanner() {
+    banner.classList.remove("visible");
+    // Mostrar el botón toggle tras la animación
+    setTimeout(() => toggleBtn.classList.remove("hidden-btn"), 350);
+  }
+
+  // Mostrar con pequeño delay para que entre con animación
+  setTimeout(() => showBanner(), 300);
+
+  // Cerrar con la X
+  closeBtn.addEventListener("click", () => {
+    hideBanner();
+    localStorage.setItem("smr_banner_closed", hoy);
+  });
+
+  // Cerrar al hacer clic en "Ver planificación"
+  banner.querySelector(".daily-banner-cta").addEventListener("click", () => {
+    hideBanner();
+  });
+
+  // Botón flotante: reabrir el banner
+  toggleBtn.addEventListener("click", () => {
+    showBanner();
+    localStorage.removeItem("smr_banner_closed");
+  });
+}
+
+</script>
+</div><!-- /app-root -->
+
+<!-- Google Translate -->
+<div id="google_translate_element"></div>
+<script src="https://translate.google.com/translate_a/element.js?cb=googleTranslateElementInit"></script>
+<script>
+  var currentLang = 'es';
+
+  function googleTranslateElementInit() {
+    new google.translate.TranslateElement({
+      pageLanguage: 'es',
+      includedLanguages: 'en,es',
+      autoDisplay: false
+    }, 'google_translate_element');
+  }
+
+  function toggleLang() {
+    const btn = document.getElementById('lang-btn');
+    const label = document.getElementById('lang-label');
+
+    if (currentLang === 'es') {
+      // Cambiar a inglés
+      currentLang = 'en';
+      document.getElementById('lang-flag-img').src = 'https://flagcdn.com/w20/gb.png';
+      label.textContent = 'EN';
+      triggerTranslate('en');
+    } else {
+      // Volver a español
+      currentLang = 'es';
+      document.getElementById('lang-flag-img').src = 'https://flagcdn.com/w20/es.png';
+      label.textContent = 'ES';
+      // Restaurar idioma original
+      const iframe = document.querySelector('.goog-te-menu-frame');
+      if (iframe) {
+        const doc = iframe.contentDocument || iframe.contentWindow.document;
+        const links = doc.querySelectorAll('.goog-te-menu2-item span.text');
+        links.forEach(l => { if(l.textContent.trim() === 'Spanish') l.closest('tr').click(); });
+      }
+      // Método alternativo: recargar sin cookie de translate
+      document.cookie = 'googtrans=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/;';
+      document.cookie = 'googtrans=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/; domain=' + location.hostname;
+      location.reload();
+    }
+  }
+
+  function triggerTranslate(lang) {
+    // Usar el select oculto de Google Translate
+    const tryTranslate = setInterval(() => {
+      const select = document.querySelector('.goog-te-combo');
+      if (select) {
+        select.value = lang;
+        select.dispatchEvent(new Event('change'));
+        clearInterval(tryTranslate);
+      }
+    }, 300);
+  }
+</script>
+
+</body>
+</html>
